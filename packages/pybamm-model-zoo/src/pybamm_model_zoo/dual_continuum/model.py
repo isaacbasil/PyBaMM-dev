@@ -1,6 +1,7 @@
 """Dual Continuum Model."""
 
 from __future__ import annotations
+from pybamm_model_zoo.dual_continuum.BaseDC import BaseDC
 
 import pybamm
 import pybamm_model_zoo
@@ -9,7 +10,7 @@ from pybamm_model_zoo import _compat
 SLUG = "dual_continuum"
 
 
-class DualContinuum(pybamm.BaseModel):
+class DualContinuum(BaseDC):
     """Dual continuum model.
 
     #TODO: finish docstring
@@ -35,8 +36,7 @@ class DualContinuum(pybamm.BaseModel):
         build: bool = True,
     ) -> None:
         super().__init__(name=name)
-        # TODO: sort citation
-        # pybamm_model_zoo.register_citation(
-        #     SLUG, "PyBaMMModelZoo2026", "WeppnerHuggins1977"
-        # )
+        pybamm_model_zoo.register_citation(
+            SLUG, "PyBaMMModelZoo2026", "Paten2026"
+        )
 
