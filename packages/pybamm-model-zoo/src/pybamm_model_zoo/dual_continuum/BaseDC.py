@@ -31,6 +31,16 @@ class BaseDC:
         self.min_eta_plating = min_eta_plating
         self.plating_correction_closure = plating_correction_closure
 
+        # ======= to incorporate into options ======
+        self.eff_props = True  # effective properties used?
+        self.am_sep_interface_pos = False  # active material-separator interface used for positive electrode?
+        self.am_cbd_interface_pos = False  # active material-CBD interface used for positive electrode?
+        self.am_sep_interface_neg = False  # active material-separator interface used for negative electrode?
+        self.am_cbd_interface_neg = False  # active material-CBD interface used for negative electrode?
+
+        self.dimensionless_closure_var = True
+
+        # =============================================
 
         # although 0 order does not need a priori calc, set to true to avoid solving for c_surf
         if self.order == 0:
@@ -220,12 +230,6 @@ class BaseDC:
         self.T = pybamm.Parameter('Temperature [K]')
         self.F_RT = self.F / (self.R * self.T)
 
-        # effective params used?
-        try:
-            eff_props = bool(self.param_values["Effective properties"])
-        except KeyError:
-            eff_props = False
-
         # define separator params
         eps_sep = pybamm.Parameter('Separator porosity')
         self.sep_surf_por = pybamm.Parameter('Separator surface porosity')
@@ -233,24 +237,15 @@ class BaseDC:
 
         # define electrolyte parameters
         self.c_e_0 = pybamm.Parameter('Initial concentration in electrolyte [mol.m-3]')
-        try:
-            float(self.param_values['Thermodynamic factor'])  # will throw error if D is function
-            tdf = pybamm.Parameter('Thermodynamic factor')
-        except TypeError:
-            tdf_inputs = {"Electrolyte concentration [mol.m-3]": self.c_e, "Temperature [K]": self.T}
-            tdf = pybamm.FunctionParameter("Thermodynamic factor", tdf_inputs)
-        try:
-            float(self.param_values['Electrolyte diffusivity [m2.s-1]'])  # will throw error if D is function
-            D_e = pybamm.Parameter('Electrolyte diffusivity [m2.s-1]')
-        except TypeError:
-            D_e_inputs = {"Electrolyte concentration [mol.m-3]": self.c_e, "Temperature [K]": self.T}
-            D_e = pybamm.FunctionParameter("Electrolyte diffusivity [m2.s-1]", D_e_inputs)
-        try:
-            float(self.param_values['Electrolyte conductivity [S.m-1]'])
-            sigma_e = pybamm.Parameter('Electrolyte conductivity [S.m-1]')
-        except TypeError:
-            sigma_e_inputs = {"Electrolyte concentration [mol.m-3]": self.c_e, "Temperature [K]": self.T}
-            sigma_e = pybamm.FunctionParameter("Electrolyte conductivity [S.m-1]", sigma_e_inputs)
+
+        tdf_inputs = {"Electrolyte concentration [mol.m-3]": self.c_e, "Temperature [K]": self.T}
+        tdf = pybamm.FunctionParameter("Thermodynamic factor", tdf_inputs)
+
+        D_e_inputs = {"Electrolyte concentration [mol.m-3]": self.c_e, "Temperature [K]": self.T}
+        D_e = pybamm.FunctionParameter("Electrolyte diffusivity [m2.s-1]", D_e_inputs)
+
+        sigma_e_inputs = {"Electrolyte concentration [mol.m-3]": self.c_e, "Temperature [K]": self.T}
+        sigma_e = pybamm.FunctionParameter("Electrolyte conductivity [S.m-1]", sigma_e_inputs)
 
         self.transp_no = pybamm.Parameter('Cation transference number')
         self.theta = - 2 * self.R * self.T * (1 - self.transp_no) / self.F * tdf
@@ -262,14 +257,11 @@ class BaseDC:
         self.vf_am_p = pybamm.Parameter("Positive electrode active material volume fraction")
         self.c_s_p_0 = pybamm.Parameter('Initial concentration in positive electrode [mol.m-3]')
 
-        try:
-            float(self.param_values['Positive electrode diffusivity [m2.s-1]'])
-            self.D_s_p = pybamm.Parameter('Positive electrode diffusivity [m2.s-1]')
-        except TypeError:
-            D_s_p_inputs = {"Positive electrode concentration [mol.m-3]": self.c_s_p,
-                            "Temperature [K]": self.T,
-                            }
-            self.D_s_p = pybamm.FunctionParameter('Positive electrode diffusivity [m2.s-1]', D_s_p_inputs)
+
+        D_s_p_inputs = {"Positive electrode concentration [mol.m-3]": self.c_s_p,
+                        "Temperature [K]": self.T,
+                        }
+        self.D_s_p = pybamm.FunctionParameter('Positive electrode diffusivity [m2.s-1]', D_s_p_inputs)
 
         if self.cell_type == "Full cell":
             self.L_n = pybamm.Parameter('Negative electrode thickness [m]')
@@ -279,14 +271,11 @@ class BaseDC:
             self.vf_am_n = pybamm.Parameter("Negative electrode active material volume fraction")
             self.c_s_n_0 = pybamm.Parameter('Initial concentration in negative electrode [mol.m-3]')
             self.V_n = self.A_cs * self.L_n
-            try:
-                float(self.param_values['Negative electrode diffusivity [m2.s-1]'])
-                self.D_s_n = pybamm.Parameter('Negative electrode diffusivity [m2.s-1]')
-            except TypeError:
-                D_s_n_inputs = {"Negative electrode concentration [mol.m-3]": self.c_s_n,
-                                "Temperature [K]": self.T,
-                                }
-                self.D_s_n = pybamm.FunctionParameter('Negative electrode diffusivity [m2.s-1]', D_s_n_inputs)
+
+            D_s_n_inputs = {"Negative electrode concentration [mol.m-3]": self.c_s_n,
+                            "Temperature [K]": self.T,
+                            }
+            self.D_s_n = pybamm.FunctionParameter('Negative electrode diffusivity [m2.s-1]', D_s_n_inputs)
         else:
             self.L_n = pybamm.Scalar(0) # define Li foil properties
 
@@ -296,7 +285,7 @@ class BaseDC:
         self.L_x = self.L_n + self.L_s + self.L_p
         self.V_p = self.A_cs * self.L_p
 
-        if eff_props:
+        if self.eff_props:
             self.sigma_s_eff_p = pybamm.Parameter("Positive electrode effective conductivity (electrode)")
             transp_eff_e_p = pybamm.Parameter("Positive electrode electrolyte transport efficiency")
             if self.cell_type == "Full cell":
@@ -343,12 +332,12 @@ class BaseDC:
 
         # real specific surface area calculations
         self.av_p_real = pybamm.Parameter("Positive electrode specific surface area from image (AM-electrolyte) [m-1]")
-        if "Positive electrode specific surface area from image (AM-CBD) [m-1]" in self.param_values.keys():
+        if self.am_cbd_interface_pos:
             cbd_surf_por = pybamm.Parameter("CBD surface porosity")
             a_p_am_cbd = pybamm.Parameter("Positive electrode specific surface area from image (AM-CBD) [m-1]")
             # multiply by surface porosity
             self.av_p_real += cbd_surf_por * a_p_am_cbd
-        if "Positive electrode specific surface area from image (AM-separator) [m-1]" in self.param_values.keys():
+        if self.am_sep_interface_pos:
             a_p_am_sep = pybamm.Parameter("Positive electrode specific surface area from image (AM-separator) [m-1]")
             # multiply by surface porosity
             self.av_p_real += self.sep_surf_por * a_p_am_sep
@@ -357,9 +346,12 @@ class BaseDC:
                 self.av_n_real = pybamm.Parameter("Negative electrode specific surface area from image (AM-electrolyte) [m-1]") 
             except KeyError:
                 pass 
-            if "Negative electrode specific surface area from image (AM-CBD) [m-1]" in self.param_values.keys():
+            if self.am_cbd_interface_neg:
                 a_n_am_cbd = pybamm.Parameter("Negative electrode specific surface area from image (AM-CBD) [m-1]")
                 self.av_n_real += cbd_surf_por * a_n_am_cbd # multiply by surface porosity
+            if self.am_sep_interface_neg:
+                a_n_am_sep = pybamm.Parameter("Negative electrode specific surface area from image (AM-separator) [m-1]")
+                self.av_n_real += self.sep_surf_por * a_n_am_sep
 
         # ======== SEI ========
         if self.sei: 
@@ -404,7 +396,7 @@ class BaseDC:
 
         if self.transient_inputs:
             self.s0_p_surface_average = pybamm.FunctionParameter("Positive electrode s0 surface average transient", {"Time [s]": self.t})
-        elif "Positive electrode s0 surface average dimensionless" in self.param_values:
+        elif self.dimensionless_closure_var:
             self.s0_p_surface_average = pybamm.Parameter("Positive electrode s0 surface average dimensionless") * self.L_p / (self.D_s_p * self.F)
         else:
             self.s0_p_surface_average =  pybamm.Parameter("Positive electrode s0 surface average") 
@@ -441,14 +433,9 @@ class BaseDC:
 
         elif self.order == "Yang":    
 
-            if "Positive particle radius [m]" in self.param_values: # incase MP model defined
-                self.l_s_p = pybamm.Parameter("Positive particle radius [m]")
-            elif "Positive particle mean radius [m]" in self.param_values:
-                self.l_s_p = pybamm.Parameter("Positive particle mean radius [m]")
-            else:
-                raise ValueError("Positive particle radius parameter not found for Yang's model")
+            self.l_s_p = pybamm.Parameter("Positive particle radius [m]")
             a_d_p = pybamm.Parameter("Positive electrode Yang fitting parameter")
-            small_perturbation = 1e-200
+            small_perturbation = 1e-200 # avoid singularity at t=0 
             self.t_dif_p = self.l_s_p ** 2 / self.D_s_p
             self.t_cut_p = self.t_dif_p / (a_d_p ** 2)
             regime_p = (2 * pybamm.t < 2 * self.t_cut_p) # multiply by 2 to avoid a bug with the treatment of the heaviside
@@ -463,7 +450,7 @@ class BaseDC:
 
             if self.transient_inputs:
                 self.s0_n_surface_average = pybamm.FunctionParameter("Negative electrode s0 surface average transient", {"Time [s]": self.t})
-            elif "Negative electrode s0 surface average dimensionless" in self.param_values:
+            elif self.dimensionless_closure_var:
                 self.s0_n_surface_average = pybamm.Parameter("Negative electrode s0 surface average dimensionless") * self.L_n / (self.D_s_n * self.F)
             else:
                 self.s0_n_surface_average =  pybamm.Parameter("Negative electrode s0 surface average") 
