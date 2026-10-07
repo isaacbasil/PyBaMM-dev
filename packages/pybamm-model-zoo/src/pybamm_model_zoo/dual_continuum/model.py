@@ -31,12 +31,18 @@ class DualContinuum(BaseDC):
 
     def __init__(
         self,
-        options: dict | None = None,
+        pybamm_options: dict | None = None,
+        dc_options: dict | None = None,
         name: str = "Dual Continuum Model",
         build: bool = True,
     ) -> None:
-        super().__init__(name=name)
+        super().__init__(pybamm_options, dc_options, name)
         pybamm_model_zoo.register_citation(
             SLUG, "PyBaMMModelZoo2026", "Paten2026"
         )
 
+        self.define_variables()
+        self.define_parameters()
+        self.set_model_equations()
+        self.set_initial_and_boundary_conditions()
+        self.define_output_variables()
