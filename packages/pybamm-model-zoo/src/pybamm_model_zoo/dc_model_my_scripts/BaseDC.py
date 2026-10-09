@@ -1,7 +1,7 @@
 import pybamm
 import numpy as np
 from pybamm.models.full_battery_models.lithium_ion.base_lithium_ion_model import BaseModel
-from pybamm_model_zoo.dual_continuum.dc_model_options import DCModelOptions
+from pybamm_model_zoo.dc_model_my_scripts.dc_model_options import DCModelOptions
 
 
 class BaseDC(BaseModel):
