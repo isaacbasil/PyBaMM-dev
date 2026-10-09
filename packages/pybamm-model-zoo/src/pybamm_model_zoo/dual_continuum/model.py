@@ -59,6 +59,15 @@ class DualContinuum(pybamm.lithium_ion.DFN):
         pybamm_model_zoo.register_citation(SLUG, "PyBaMMModelZoo2026", "Paten2026")
 
     def set_particle_submodel(self):
+        if (
+            self.dc_options["calculate surface concentration a priori"] == "true"
+            and self.options["operating mode"] != "current"
+        ):
+            raise pybamm.OptionError(
+                "'calculate surface concentration a priori' requires galvanostatic "
+                "operation ('operating mode': 'current'), since it uses the applied "
+                "current to estimate the reaction rate"
+            )
         for domain in ["negative", "positive"]:
             if self.options.electrode_types[domain] == "planar":
                 continue

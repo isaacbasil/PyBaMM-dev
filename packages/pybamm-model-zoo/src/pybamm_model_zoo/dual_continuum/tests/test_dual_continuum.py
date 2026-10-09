@@ -256,6 +256,11 @@ class TestDualContinuum:
                     "calculate surface concentration a priori": "true",
                 }
             )
+        with pytest.raises(pybamm.OptionError, match="requires galvanostatic"):
+            dual_continuum(
+                {"operating mode": "voltage"},
+                {"calculate surface concentration a priori": "true"},
+            )
         with pytest.raises(pybamm.OptionError, match="only applies to half cells"):
             dual_continuum(dc_options={"lithium foil surface porosity": "true"})
         with pytest.raises(pybamm.OptionError, match="single particle phase"):

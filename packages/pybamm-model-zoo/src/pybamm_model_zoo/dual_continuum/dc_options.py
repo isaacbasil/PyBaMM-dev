@@ -14,7 +14,8 @@ class DCModelOptions(pybamm.FuzzyDict):
         - "Yang": boundary-layer closure of Yang and Tartakovsky
     * "calculate surface concentration a priori" : DC1 only. "false" uses the
       local reaction rate ``j`` (an algebraic equation for c_surf); "true" uses
-      the electrode-averaged rate imposed by the applied current (explicit).
+      the electrode-averaged rate imposed by the applied current (explicit),
+      which requires galvanostatic operation ("operating mode": "current").
     * "closure variable" : DC1 only. "parameter" reads the closure variable
       :math:`\\langle s \\rangle_A` from the parameter set; "isolated sphere"
       uses the analytical closure solution for an isolated sphere,
