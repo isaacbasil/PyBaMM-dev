@@ -9,4 +9,3 @@
 /packages/pybamm-model-zoo/ @pybamm-team/maintainers
 /packages/pybamm-model-zoo/src/pybamm_model_zoo/linearised_spm/ @pybamm-team/maintainers
 /packages/pybamm-model-zoo/src/pybamm_model_zoo/dual_continuum/ @isaacbasil
-/packages/pybamm-model-zoo/src/pybamm_model_zoo/dc_model_my_scripts/ @isaacbasil
