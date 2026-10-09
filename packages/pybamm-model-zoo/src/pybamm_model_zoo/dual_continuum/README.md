@@ -6,7 +6,7 @@
 
 Dual-continuum (DC) model of a lithium-ion cell (Paten et al., 2026), built as a
 subclass of `pybamm.lithium_ion.DFN`. The electrolyte, solid-phase conduction,
-kinetics, thermal and lithium-metal counter-electrode physics are PyBaMM's.
+kinetics, thermal and lithium-metal counter-electrode physics are identical to those in PyBaMM's DFN.
 The difference is the active material (AM): instead of solving radial
 diffusion in idealised spherical particles at every point of the electrode,
 the AM mass balance is homogenised with the volume-averaging technique,
@@ -27,10 +27,11 @@ three definitions (Table I of the paper):
 In DC1, `<s>_A` [mol.m-1.A-1] is the **closure variable**: the surface average
 of the solution of a closure problem solved once on the electrode
 microstructure (e.g. with the `solveclosure` tool, ref. 56 of the paper).
-It depends only on the microstructure and the AM diffusivity, not on the
-operating conditions. No assumption on particle shape is made. With
+It depends only on the microstructure, not on
+operating conditions or material properties. No assumption on particle shape is made. With
 `"calculate surface concentration a priori": "true"`, `j` is replaced by its
-electrode average, which removes one algebraic equation per mesh cell.
+electrode average, which removes one algebraic equation per mesh cell. This is only appropriate 
+for galvanostatic operations.
 
 Yang and Tartakovsky's model uses a boundary layer of thickness
 `l_d = a_d sqrt(D t)` (up to `l_k`) inside particles of length scale `l_k`,
@@ -112,11 +113,12 @@ setting each surface porosity equal to the corresponding volume porosity.**
 
 An effective particle radius `R_eff = 3 eps_s / a` is computed from the total
 area and reported as `"Positive electrode effective particle radius [m]"`; it
-is the radius used by the isolated-sphere closure.
+is the radius used by the isolated-sphere closure. This is purely to simplify 
+compatibility with PyBaMM's DFN class, which this model builds on.  
 
 ### SEI and other DFN options
 
-The DC model has no SEI model of its own: it accepts PyBaMM's `"SEI"` options
+The DC model accepts PyBaMM's `"SEI"` options
 (e.g. `DualContinuum({"SEI": "reaction limited"})`) and the DFN's other
 options, with their parameters. With `"surface area": "from image"`, the SEI
 grows on the same total specific surface area `a` as the main reaction,
