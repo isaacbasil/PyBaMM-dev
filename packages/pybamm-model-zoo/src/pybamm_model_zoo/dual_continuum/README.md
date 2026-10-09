@@ -157,8 +157,12 @@ cathode half cell (Xu2019):
   separator surface porosity.
 - Lithium in the active material is conserved to round-off.
 - In a half cell with AM-CBD and AM-separator areas, surface porosities and
-  the foil scaling, DC0, DC1 and DC1 a priori match the standalone implementation
-  (`dc_model_my_scripts`) to within 10 µV.
+  the foil scaling, DC0, DC1 and DC1 a priori match reference voltages from
+  the standalone implementation used in the paper to within 10 µV
+  (`tests/data/standalone_reference.csv`, whose header records how it was
+  generated).
+- Splitting the specific surface area into AM-electrolyte, AM-CBD and
+  AM-separator contributions gives the same result as the same total area.
 - The Table IV parameter sets give identical results with the Bruggeman and
   tortuosity-factor transport options.
 

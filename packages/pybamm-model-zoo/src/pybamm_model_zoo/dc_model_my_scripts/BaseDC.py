@@ -226,10 +226,10 @@ class BaseDC(BaseModel):
         self.c_s_p_0 = pybamm.Parameter('Initial concentration in positive electrode [mol.m-3]')
 
 
-        D_s_p_inputs = {"Positive electrode concentration [mol.m-3]": self.c_s_p,
+        D_s_p_inputs = {"Positive particle stoichiometry": self.c_s_p / self.c_p_max,
                         "Temperature [K]": self.T,
                         }
-        self.D_s_p = pybamm.FunctionParameter('Positive electrode diffusivity [m2.s-1]', D_s_p_inputs)
+        self.D_s_p = pybamm.FunctionParameter('Positive particle diffusivity [m2.s-1]', D_s_p_inputs)
 
         if self.dc_options["cell type"] == "Full cell":
             self.L_n = pybamm.Parameter('Negative electrode thickness [m]')
@@ -240,10 +240,10 @@ class BaseDC(BaseModel):
             self.c_s_n_0 = pybamm.Parameter('Initial concentration in negative electrode [mol.m-3]')
             self.V_n = self.A_cs * self.L_n
 
-            D_s_n_inputs = {"Negative electrode concentration [mol.m-3]": self.c_s_n,
+            D_s_n_inputs = {"Negative particle stoichiometry": self.c_s_n / self.c_n_max,
                             "Temperature [K]": self.T,
                             }
-            self.D_s_n = pybamm.FunctionParameter('Negative electrode diffusivity [m2.s-1]', D_s_n_inputs)
+            self.D_s_n = pybamm.FunctionParameter('Negative particle diffusivity [m2.s-1]', D_s_n_inputs)
         else:
             self.L_n = pybamm.Scalar(0) # define Li foil properties
 

@@ -4,8 +4,11 @@ The closures are pinned against exact limits: DC0 is PyBaMM's uniform-profile
 particle, and DC1 with the isolated-sphere closure variable -R/(5 D F) (the
 analytical solution of the closure problem for a sphere) is PyBaMM's
 quadratic-profile particle. The image-based surface area and the lithium-foil
-option are pinned against the standalone implementation, dc_model_my_scripts.
+option are pinned against reference voltages from the standalone
+implementation (tests/data/standalone_reference.csv).
 """
+
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -21,6 +24,14 @@ CELLS = [pytest.param({}, id="full cell"), pytest.param(HALF_CELL, id="half cell
 #: DC options that reproduce the DFN's geometry and need no DC parameters.
 DFN_LIKE = {"surface area": "spherical", "closure variable": "isolated sphere"}
 AREA = "Positive electrode specific surface area from image"
+REFERENCE = Path(__file__).parent / "data" / "standalone_reference.csv"
+#: Changes to the half-cell defaults used for the reference voltages.
+REFERENCE_CHANGES = {
+    f"{AREA} (AM-CBD) [m-1]": 5.0e4,
+    f"{AREA} (AM-separator) [m-1]": 2.0e4,
+    "CBD surface porosity": 0.3,
+    "Separator surface porosity": 0.6,
+}
 
 
 def dual_continuum(options=None, dc_options=None):
@@ -166,40 +177,60 @@ class TestDualContinuum:
                 rtol=1e-9,
             )
 
-    # BaseDC still uses the pre-rename "... electrode diffusivity" parameter name
-    @pytest.mark.filterwarnings("ignore:The parameter .* has been renamed")
-    @pytest.mark.filterwarnings("ignore:Both the deprecated")
+    def test_surface_area_enters_only_through_its_total(self):
+        model = dual_continuum(HALF_CELL)
+        split = model.default_parameter_values
+        split.update(REFERENCE_CHANGES)
+        total = split.copy()
+        total.update(
+            {
+                f"{AREA} (AM-electrolyte) [m-1]": split[
+                    f"{AREA} (AM-electrolyte) [m-1]"
+                ]
+                + 0.3 * 5.0e4
+                + 0.6 * 2.0e4,
+                f"{AREA} (AM-CBD) [m-1]": 0.0,
+                f"{AREA} (AM-separator) [m-1]": 0.0,
+            }
+        )
+        np.testing.assert_allclose(
+            voltage(model, split), voltage(model, total), rtol=1e-9
+        )
+
     @pytest.mark.parametrize(
-        "dc_options",
+        ("label", "dc_options"),
         [
-            {"model type": "DC0", "calculate surface concentration a priori": "true"},
-            {"model type": "DC1"},
-            {"model type": "DC1", "calculate surface concentration a priori": "true"},
+            (
+                "DC0",
+                {
+                    "model type": "DC0",
+                    "calculate surface concentration a priori": "true",
+                },
+            ),
+            ("DC1", {"model type": "DC1"}),
+            (
+                "DC1 a priori",
+                {
+                    "model type": "DC1",
+                    "calculate surface concentration a priori": "true",
+                },
+            ),
         ],
     )
-    def test_matches_standalone_implementation(self, dc_options):
+    def test_matches_standalone_reference(self, label, dc_options):
         # The standalone implementation scales the foil exchange current
         model = dual_continuum(
             HALF_CELL, {**dc_options, "lithium foil surface porosity": "true"}
         )
         parameter_values = model.default_parameter_values
-        # Exercise every surface term, and the foil scaling
-        parameter_values.update(
-            {
-                f"{AREA} (AM-CBD) [m-1]": 5.0e4,
-                f"{AREA} (AM-separator) [m-1]": 2.0e4,
-                "CBD surface porosity": 0.3,
-                "Separator surface porosity": 0.6,
-            }
-        )
+        parameter_values.update(REFERENCE_CHANGES)
+        reference = read_reference()
         # Tight tolerances so that solver error does not mask model differences
         new = voltage(
             model, parameter_values, pybamm.IDAKLUSolver(rtol=1e-7, atol=1e-8)
         )
-        reference = solve_standalone(
-            dc_options, parameter_values, pybamm.IDAKLUSolver(rtol=1e-7, atol=1e-8)
-        )
-        np.testing.assert_allclose(new, reference, atol=1e-5)
+        np.testing.assert_allclose(TIMES, reference["Time [s]"])
+        np.testing.assert_allclose(new, reference[f"{label} voltage [V]"], atol=1e-5)
 
     def test_options(self):
         with pytest.raises(pybamm.OptionError, match="not recognised"):
@@ -219,94 +250,10 @@ class TestDualContinuum:
             dual_continuum({"particle phases": ("2", "1")})
 
 
-def standalone_parameters(pv):
-    """Translate PyBaMM half-cell parameter values into BaseDC's names."""
-    eps_s = pv["Positive electrode active material volume fraction"]
-    eps_e = pv["Positive electrode porosity"]
-    eps_sep = pv["Separator porosity"]
-    area = pv["Electrode height [m]"] * pv["Electrode width [m]"]
-    j0_li = pv["Exchange-current density for lithium metal electrode [A.m-2]"]
-    c_li_metal = 1 / pv["Lithium metal partial molar volume [m3.mol-1]"]
-    brugg = "Bruggeman coefficient"
-    same = [
-        "Electrode height [m]",
-        "Electrode width [m]",
-        "Initial concentration in electrolyte [mol.m-3]",
-        "Electrolyte diffusivity [m2.s-1]",
-        "Electrolyte conductivity [S.m-1]",
-        "Cation transference number",
-        "Positive electrode porosity",
-        "Maximum concentration in positive electrode [mol.m-3]",
-        "Initial concentration in positive electrode [mol.m-3]",
-        "Separator thickness [m]",
-        "Positive electrode thickness [m]",
-        "Positive electrode conductivity [S.m-1]",
-        "Positive electrode OCP [V]",
-        "Positive electrode exchange-current density [A.m-2]",
-        "Positive electrode s0 surface average",
-        "CBD surface porosity",
-        "Separator surface porosity",
-        f"{AREA} (AM-electrolyte) [m-1]",
-        f"{AREA} (AM-CBD) [m-1]",
-        f"{AREA} (AM-separator) [m-1]",
-    ]
-    values = {key: pv[key] for key in same}
-    values.update(
-        {
-            "Ideal gas constant [J.K-1.mol-1]": pybamm.constants.R.value,
-            "Faraday constant [C.mol-1]": pybamm.constants.F.value,
-            # BaseDC: negative current density is a discharge
-            "Current density [A.m-2]": -pv["Current function [A]"] / area,
-            "Temperature [K]": pv["Ambient temperature [K]"],
-            "Separator porosity": eps_sep,
-            "Separator tortuosity (electrolyte)": eps_sep
-            ** (1 - pv[f"Separator {brugg} (electrolyte)"]),
-            "Thermodynamic factor": lambda c_e, T: 1.0 + 0 * c_e,
-            "Positive electrode active material volume fraction": eps_s,
-            "Positive electrode diffusivity [m2.s-1]": pv[
-                "Positive particle diffusivity [m2.s-1]"
-            ],
-            "Positive electrode tortuosity (electrode)": eps_s
-            ** (1 - pv[f"Positive electrode {brugg} (electrode)"]),
-            "Positive electrode tortuosity (electrolyte)": eps_e
-            ** (1 - pv[f"Positive electrode {brugg} (electrolyte)"]),
-            "Positive electrode rate constant": 0.0,
-            # BaseDC passes c_Li = 1; PyBaMM passes 1 / (Li partial molar volume)
-            "Exchange-current density for lithium metal electrode [A.m-2]": (
-                lambda c_e, c_Li, T: j0_li(c_e, c_li_metal, T)
-            ),
-        }
-    )
-    return pybamm.ParameterValues(values)
-
-
-def solve_standalone(dc_options, pv, solver, points=20):
-    options = {
-        "cell type": "Cathode half cell",
-        "effective properties": "false",
-        "dimensionless closure variable": "false",
-        "active material-CBD interface": "positive",
-        "active material-separator interface": "positive",
-        **dc_options,
-    }
-    model = zoo.load("DCModelMyScripts")(dc_options=options)
-    geometry = {
-        "separator": {model.x_s: {"min": pybamm.Scalar(0), "max": model.L_s}},
-        "positive electrode": {
-            model.x_p: {"min": model.L_s, "max": model.L_s + model.L_p}
-        },
-    }
-    parameters = standalone_parameters(pv)
-    parameters.process_model(model)
-    parameters.process_geometry(geometry)
-    mesh = pybamm.Mesh(
-        geometry,
-        dict.fromkeys(geometry, pybamm.Uniform1DSubMesh),
-        {model.x_s: points, model.x_p: points},
-    )
-    discretisation = pybamm.Discretisation(
-        mesh, {domain: pybamm.FiniteVolume() for domain in geometry}
-    )
-    discretisation.process_model(model)
-    solution = solver.solve(model, [0, SOLVE_TIME], t_interp=TIMES)
-    return solution["Voltage [V]"](TIMES)
+def read_reference():
+    """Reference voltages by column name (the last comment line)."""
+    with open(REFERENCE) as file:
+        comments = [line for line in file if line.startswith("#")]
+    names = comments[-1].lstrip("# ").strip().split(",")
+    data = np.loadtxt(REFERENCE, delimiter=",")
+    return dict(zip(names, data.T, strict=True))
