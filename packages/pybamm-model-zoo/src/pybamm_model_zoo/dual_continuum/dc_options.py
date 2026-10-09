@@ -1,36 +1,37 @@
-"""Options specific to the dual-continuum (DC) model.
+"""Options specific to the dual-continuum (DC) model."""
 
-Only the options that change the *model equations* live here. Options of the
-standalone ``BaseDC`` model that are really parameter choices are handled by
-PyBaMM options or by the parameter set instead:
-
-* "cell type"                 -> PyBaMM option ``"working electrode"``
-* "effective properties"      -> PyBaMM option ``"transport efficiency"``
-* "active material-separator interface" / "active material-CBD interface"
-                              -> fold into the surface-area parameter
-                                 (``"surface area": "from parameter"``)
-"""
+from __future__ import annotations
 
 import pybamm
 
 
 class DCModelOptions(pybamm.FuzzyDict):
-    #: The first entry of each list is the default.
+    """Dual-continuum options; the first value of each list is the default.
+
+    * "model type" : the surface-concentration definition
+        - "DC1": :math:`c_{surf} = c_{vol} + \\langle s \\rangle_A j`
+        - "DC0": :math:`c_{surf} = c_{vol}`
+        - "Yang": boundary-layer closure of Yang and Tartakovsky
+    * "calculate surface concentration a priori" : DC1 only. "false" uses the
+      local reaction rate ``j`` (an algebraic equation for c_surf); "true" uses
+      the electrode-averaged rate imposed by the applied current (explicit).
+    * "closure variable" : DC1 only. "parameter" reads the closure variable
+      :math:`\\langle s \\rangle_A` from the parameter set; "isolated sphere"
+      uses the analytical closure solution for an isolated sphere,
+      :math:`-R_{eff}/(5 D F)`.
+    * "dimensionless closure variable" : with "closure variable": "parameter",
+      "true" reads :math:`s^*` with :math:`\\langle s \\rangle_A = s^* L/(D F)`.
+    * "surface area" : "from image" builds the specific surface area from the
+      AM-electrolyte, AM-CBD and AM-separator areas and surface porosities;
+      "spherical" uses :math:`3 \\varepsilon_s / R` as in the DFN.
+    """
+
     possible_options = {
-        # Closure for the surface concentration
         "model type": ["DC1", "DC0", "Yang"],
-        # DC1 only: "true" uses the electrode-averaged current density
-        # (explicit, no extra unknown); "false" uses the local current density
-        # (one algebraic equation per mesh cell for c_surf)
         "calculate surface concentration a priori": ["false", "true"],
-        # DC1 only: give s0 directly ("false") or as s0* with
-        # s0 = s0* * L / (D_s F) ("true")
-        "dimensionless closure variable": ["true", "false"],
-        # How the specific surface area a [m-1] is obtained:
-        #   "spherical"      -> a = 3 eps_s / R  (PyBaMM default)
-        #   "from parameter" -> "{Domain} electrode surface area to volume
-        #                        ratio [m-1]" (e.g. measured from images)
-        "surface area": ["spherical", "from parameter"],
+        "closure variable": ["parameter", "isolated sphere"],
+        "dimensionless closure variable": ["false", "true"],
+        "surface area": ["from image", "spherical"],
     }
 
     def __init__(self, extra_options=None):

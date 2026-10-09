@@ -6,58 +6,136 @@
 
 Dual-continuum (DC) model of a lithium-ion cell (Paten et al., 2026), built as a
 subclass of `pybamm.lithium_ion.DFN`. The electrolyte, solid-phase conduction,
-kinetics, thermal and lithium-metal counter-electrode physics are PyBaMM's. Only
-the particle problem changes: instead of solving radial diffusion at every
-macroscale point, the model solves a mass balance for the volume-averaged
-active-material concentration,
+kinetics, thermal and lithium-metal counter-electrode physics are PyBaMM's.
+The difference is the active material (AM): instead of solving radial
+diffusion in idealised spherical particles at every point of the electrode,
+the AM mass balance is homogenised with the volume-averaging technique,
 
-    d c_avg / dt = - a j / (eps_s F),
+    d c_vol / dt = - a j / (eps_s F),
 
-and closes the surface concentration seen by the kinetics with
+where `c_vol` is the volume-averaged AM concentration, `a` the specific surface
+area, `eps_s` the AM volume fraction and `j` the reaction rate. The
+surface-averaged concentration `c_surf` used in the kinetics is given by one of
+three definitions (Table I of the paper):
 
-| `"model type"` | closure |
+| `"model type"` | surface concentration |
 | --- | --- |
-| `"DC0"` | `c_surf = c_avg` |
-| `"DC1"` | `c_surf = c_avg + s0 * j` (local `j`, implicit), or `c_surf = c_avg + s0 * j_avg` with `"calculate surface concentration a priori": "true"` |
-| `"Yang"` | diffusion-length correction with a time-dependent length (Yang et al.) |
+| `"DC1"` (default) | `c_surf = c_vol + <s>_A j` |
+| `"DC0"` | `c_surf = c_vol` |
+| `"Yang"` | `c_surf = c_vol + gamma j`, `gamma = (l_d^2/(6 l_k^2) - l_d/(2 l_k)) l_k/(D F)` |
 
-The specific surface area can be `3 eps_s / R` (`"surface area": "spherical"`) or
-a parameter, e.g. measured on tomography images (`"surface area": "from parameter"`).
+In DC1, `<s>_A` [mol.m-1.A-1] is the **closure variable**: the surface average
+of the solution of a closure problem solved once on the electrode
+microstructure (e.g. with the `solveclosure` tool, ref. 56 of the paper).
+It depends only on the microstructure and the AM diffusivity, not on the
+operating conditions. No assumption on particle shape is made. With
+`"calculate surface concentration a priori": "true"`, `j` is replaced by its
+electrode average, which removes one algebraic equation per mesh cell.
+
+Yang and Tartakovsky's model uses a boundary layer of thickness
+`l_d = a_d sqrt(D t)` (up to `l_k`) inside particles of length scale `l_k`,
+taken from the particle radius parameter, with a fitting parameter `a_d`.
+
+The DC model is a fully macroscale description: it has no radial dimension.
+Radial output variables (e.g. `"Positive particle concentration [mol.m-3]"`)
+are the volume average broadcast in r; use `"Positive particle surface
+concentration [mol.m-3]"` for the surface concentration.
 
 ## Usage
 
 ```python
 import pybamm
 import pybamm_model_zoo as zoo
+from pybamm_model_zoo.dual_continuum import parameter_sets
 
 DualContinuum = zoo.load("DualContinuum")
+
+# Defaults: PyBaMM's DFN parameter set plus the DC parameters below
+solution = pybamm.Simulation(DualContinuum()).solve([0, 3600])
+
+# Cathode half cell
+model = DualContinuum({"working electrode": "positive"})
+
+# LG M50 cell with the parameters of Paten et al. (2026), Table IV
+solution = pybamm.Simulation(
+    DualContinuum(), parameter_values=parameter_sets.paten2026_dc1()
+).solve([0, 3600])
+
+# Any parameter set written for the DFN (no DC parameters needed)
 model = DualContinuum(
-    options={"working electrode": "positive"},  # cathode half cell
-    dc_options={"model type": "DC1", "dimensionless closure variable": "false"},
+    dc_options={"closure variable": "isolated sphere", "surface area": "spherical"}
 )
-parameter_values = model.default_parameter_values
-parameter_values["Positive electrode s0 surface average"] = -1100.0  # [mol.A-1.m-1]
-solution = pybamm.Simulation(model, parameter_values=parameter_values).solve([0, 3600])
-print(solution["Voltage [V]"](1800))
+solution = pybamm.Simulation(
+    model, parameter_values=pybamm.ParameterValues("Chen2020")
+).solve([0, 3600])
 ```
 
-New parameters:
+### DC options
 
-| Parameter | When |
+| Option | Values (first is default) |
 | --- | --- |
-| `"{Domain} electrode s0 surface average"` [mol.A-1.m-1] | DC1, `"dimensionless closure variable": "false"` |
-| `"{Domain} electrode s0 surface average dimensionless"`, with `s0 = s0* L / (D_s F)` | DC1, `"dimensionless closure variable": "true"` (default) |
-| `"{Domain} electrode surface area to volume ratio [m-1]"` (function of x) | `"surface area": "from parameter"` |
-| `"{Domain} electrode Yang fitting parameter"` | Yang |
+| `"model type"` | `"DC1"`, `"DC0"`, `"Yang"` |
+| `"calculate surface concentration a priori"` | `"false"`, `"true"` (DC1 only) |
+| `"closure variable"` | `"parameter"`, `"isolated sphere"` (DC1 only) |
+| `"dimensionless closure variable"` | `"false"`, `"true"` |
+| `"surface area"` | `"from image"`, `"spherical"` |
 
-The defaults set `s0 = -R / (5 D_s F)`, which makes DC1 identical to PyBaMM's
-`"quadratic profile"` particle.
+- `"closure variable": "isolated sphere"` uses `<s>_A = -R_eff / (5 D F)`, the
+  analytical solution of the closure problem for an isolated sphere of radius
+  `R_eff`, with `D` evaluated at the local volume-averaged concentration. With
+  it, DC1 coincides with PyBaMM's `"quadratic profile"` particle for spherical
+  geometry.
+- `"surface area": "spherical"` uses `a = 3 eps_s / R`, as in the DFN.
 
-Options of the standalone `DCModelMyScripts` (BaseDC) model map as follows:
-`"cell type"` → PyBaMM `"working electrode"`; `"effective properties"` → PyBaMM
-`"transport efficiency"` (e.g. `"tortuosity factor"`); the AM–CBD and
-AM–separator interfaces and the separator surface porosity → fold them into the
-surface-area parameter and the lithium-metal exchange-current function.
+### Specific surface area from images
+
+With `"surface area": "from image"`, the reactive specific surface area of each
+electrode is
+
+    a = a_AM-electrolyte + eps_CBD_surf a_AM-CBD + eps_sep_surf a_AM-separator,
+
+with each specific area (per unit electrode volume) measured on images of the
+microstructure. The carbon-binder domain (CBD) and the separator are effective
+media that contain electrolyte in their pores, so a reaction still takes place
+at AM-CBD and AM-separator interfaces, albeit at a reduced rate. The surface
+porosities `eps_CBD_surf` and `eps_sep_surf` express that reduction: they are
+the fraction of those interfaces in contact with electrolyte. **We recommend
+setting each surface porosity equal to the corresponding volume porosity.**
+
+An effective particle radius `R_eff = 3 eps_s / a` is computed from the total
+area and reported as `"Positive electrode effective particle radius [m]"`; it
+is the radius used by the isolated-sphere closure. In a half cell, the lithium
+foil reacts only where it meets the separator's pores, so its exchange-current
+density is also multiplied by the separator surface porosity.
+
+### Parameters
+
+| Parameter | Used when |
+| --- | --- |
+| `"{Domain} electrode s0 surface average"` [mol.m-1.A-1], the closure variable `<s>_A` | DC1, `"closure variable": "parameter"` |
+| `"{Domain} electrode s0 surface average dimensionless"` `s*`, with `<s>_A = s* L / (D F)` | DC1, `"dimensionless closure variable": "true"` |
+| `"{Domain} electrode specific surface area from image (AM-electrolyte) [m-1]"` | `"surface area": "from image"` |
+| `"{Domain} electrode specific surface area from image (AM-CBD) [m-1]"` | `"surface area": "from image"` |
+| `"{Domain} electrode specific surface area from image (AM-separator) [m-1]"` | `"surface area": "from image"` |
+| `"CBD surface porosity"`, `"Separator surface porosity"` | `"surface area": "from image"` |
+| `"{Domain} electrode Yang fitting parameter"` `a_d` | Yang |
+
+`default_parameter_values` is the DFN's default set (Marquis2019 for a full
+cell, Xu2019 for a half cell) plus:
+
+- AM-electrolyte areas equal to the DFN's `3 eps_s / R`, no AM-CBD or
+  AM-separator contact, separator surface porosity equal to the separator
+  porosity, and a CBD surface porosity of 0.5;
+- the closure variable set to the isolated-sphere value `-R/(5 D F)` at the
+  reference state, so the defaults describe the same cell as the DFN's;
+- a Yang fitting parameter of 2 (a placeholder to replace).
+
+`parameter_sets.paten2026_dc1()` and `parameter_sets.paten2026_dfn()` return the
+DC1 and DFN columns of Table IV (an LG M50 cell, fitted to the 1C discharge of
+Chen et al. 2020), on top of PyBaMM's Chen2020 set for all other values. The
+electrolyte tortuosities are given both as tortuosity factors and as the
+equivalent Bruggeman coefficients, so either `"transport efficiency"` option
+gives the same result.
 
 ## Validation
 
@@ -65,18 +143,25 @@ Pinned by `tests/test_dual_continuum.py`, for a full cell (Marquis2019) and a
 cathode half cell (Xu2019):
 
 - DC0 reproduces DFN `"uniform profile"` (rtol 1e-7).
-- DC1 with `s0 = -R/(5 D_s F)`, dimensional and dimensionless, reproduces DFN
-  `"quadratic profile"` (rtol 1e-7).
-- `"surface area": "from parameter"` with `a = 3 eps_s / R` reproduces `"spherical"`.
-- Lithium in the particles is conserved to round-off.
-- Half cell: DC0, DC1 implicit and DC1 a priori match the standalone BaseDC
-  implementation to within 10 µV (the difference shrinks with solver tolerance).
+- DC1 with the isolated-sphere closure variable reproduces DFN
+  `"quadratic profile"` (rtol 1e-7), as do the default parameters, with
+  dimensional and dimensionless closure variables.
+- The image-based specific surface area and `R_eff` follow the formula above,
+  and the lithium-foil exchange current is scaled by the separator surface
+  porosity.
+- Lithium in the active material is conserved to round-off.
+- In a half cell with AM-CBD and AM-separator areas and surface porosities,
+  DC0, DC1 and DC1 a priori match the standalone implementation
+  (`dc_model_my_scripts`) to within 10 µV.
+- The Table IV parameter sets give identical results with the Bruggeman and
+  tortuosity-factor transport options.
 
-Not yet validated: the Yang closure (only checked to solve), full-cell
-comparison against BaseDC, and calibrated closure coefficients against
-pore-scale simulations. Not yet ported from BaseDC: Schneider2022 SEI, transient
+Not yet validated here: the Yang closure (only its dependence on the particle
+radius is checked), and the experimental comparison of the paper. Not yet
+ported from the standalone implementation: Schneider2022 SEI, transient
 closure inputs, minimum plating overpotential outputs. Particle-size
-distributions and multiple particle phases are not supported.
+distributions, multiple particle phases and loss of active material are not
+supported.
 
 ## Citation
 

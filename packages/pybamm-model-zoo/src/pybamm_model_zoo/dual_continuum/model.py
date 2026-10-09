@@ -5,7 +5,8 @@ from __future__ import annotations
 import pybamm
 import pybamm_model_zoo
 from pybamm_model_zoo.dual_continuum.dc_active_material import (
-    ConstantWithSurfaceArea,
+    ConstantFromImage,
+    ConstantSpherical,
 )
 from pybamm_model_zoo.dual_continuum.dc_options import DCModelOptions
 from pybamm_model_zoo.dual_continuum.dc_particle import DCParticle
@@ -14,13 +15,19 @@ SLUG = "dual_continuum"
 
 
 class DualContinuum(pybamm.lithium_ion.DFN):
-    """Dual-continuum model of a lithium-ion cell.
+    """Dual-continuum model of a lithium-ion cell (Paten et al., 2026).
 
     Electrolyte, solid-phase conduction, kinetics, thermal and counter-electrode
     physics are those of :class:`pybamm.lithium_ion.DFN`. The pseudo-2D particle
-    problem is replaced by an upscaled mass balance for the volume-averaged
-    active-material concentration plus a closure for the surface concentration
-    (see :class:`DCParticle`).
+    problem is replaced by a homogenised mass balance for the volume-averaged
+    active-material concentration, with the surface concentration given by the
+    DC0, DC1 or Yang definition (see :class:`DCParticle`).
+
+    With the default DC options the model reads the closure variable and the
+    image-based specific surface areas from the parameter set. To run it on a
+    parameter set written for the DFN, use
+    ``dc_options={"closure variable": "isolated sphere", "surface area":
+    "spherical"}``.
 
     Parameters
     ----------
@@ -70,58 +77,89 @@ class DualContinuum(pybamm.lithium_ion.DFN):
                     )
                 )
 
+    def _rebuild_param(self):
+        # Image-based surfaces also scale the lithium-foil exchange current
+        dc_options = getattr(self, "dc_options", None)
+        if (
+            dc_options is not None
+            and dc_options["surface area"] == "from image"
+            and self.options["working electrode"] != "both"
+        ):
+            self.param = LithiumIonParametersWithFoilPorosity(self.options)
+        else:
+            super()._rebuild_param()
+
     def set_active_material_submodel(self):
         super().set_active_material_submodel()
-        if self.dc_options["surface area"] == "spherical":
-            return
+        if self.dc_options["surface area"] == "from image":
+            submodel = ConstantFromImage
+        else:
+            submodel = ConstantSpherical
         for domain in ["negative", "positive"]:
             if self.options.electrode_types[domain] == "planar":
                 continue
             if getattr(self.options, domain)["loss of active material"] != "none":
                 raise pybamm.OptionError(
-                    "'surface area': 'from parameter' is not compatible with "
-                    "loss of active material"
+                    "The dual-continuum model does not support loss of active material"
                 )
             for phase in self.options.phases[domain]:
-                self.submodels[f"{domain} {phase} active material"] = (
-                    ConstantWithSurfaceArea(self.param, domain, self.options, phase)
+                self.submodels[f"{domain} {phase} active material"] = submodel(
+                    self.param, domain, self.options, phase
                 )
 
     @property
     def default_parameter_values(self) -> pybamm.ParameterValues:
-        """DFN defaults plus a DC1 closure equivalent to a quadratic profile."""
+        """The DFN's default parameter set plus the DC parameters.
+
+        Image-based surface areas default to the DFN geometry (3 eps_s / R,
+        no AM-CBD or AM-separator contact), and the closure variable to the
+        isolated-sphere value -R / (5 D F) at the reference state, so the
+        defaults describe the same cell as the DFN defaults.
+        """
         values = super().default_parameter_values
         param = pybamm.LithiumIonParameters()
+        values.update(
+            {
+                "CBD surface porosity": 0.5,
+                "Separator surface porosity": values["Separator porosity"],
+            },
+            check_already_exists=False,
+        )
         for domain in ["negative", "positive"]:
             if self.options.electrode_types[domain] == "planar":
                 continue
             Domain = domain.capitalize()
             domain_param = param.domain_params[domain]
             phase_param = domain_param.prim
-            c_ref = pybamm.Scalar(0.5) * phase_param.c_max
-            D_ref = phase_param.D(c_ref, param.T_ref)
-            # s0 = -R/(5 D F) reproduces the quadratic-profile closure
-            s0 = values.evaluate(-phase_param.R_typ / (5 * D_ref * param.F))
-            s0_star = values.evaluate(-phase_param.R_typ / (5 * domain_param.L))
+            D_ref = phase_param.D(0.5 * phase_param.c_max, param.T_ref)
+            s_sphere = values.evaluate(-phase_param.R_typ / (5 * D_ref * param.F))
+            area = f"{Domain} electrode specific surface area from image"
             values.update(
                 {
-                    f"{Domain} electrode s0 surface average": float(s0),
+                    f"{Domain} electrode s0 surface average": float(s_sphere),
                     f"{Domain} electrode s0 surface average dimensionless": float(
-                        s0_star
+                        s_sphere * values.evaluate(D_ref * param.F / domain_param.L)
                     ),
+                    f"{area} (AM-electrolyte) [m-1]": float(
+                        values.evaluate(phase_param.a_typ)
+                    ),
+                    f"{area} (AM-CBD) [m-1]": 0.0,
+                    f"{area} (AM-separator) [m-1]": 0.0,
                     f"{Domain} electrode Yang fitting parameter": 2.0,
                 },
                 check_already_exists=False,
             )
-            if self.dc_options["surface area"] == "from parameter":
-                eps_s = values[f"{Domain} electrode active material volume fraction"]
-                R = values[f"{Domain} particle radius [m]"]
-                values.update(
-                    {
-                        f"{Domain} electrode surface area to volume ratio [m-1]": (
-                            3 * eps_s / R
-                        )
-                    },
-                    check_already_exists=False,
-                )
         return values
+
+
+class LithiumIonParametersWithFoilPorosity(pybamm.LithiumIonParameters):
+    """Lithium-ion parameters with the lithium-foil reaction on the separator.
+
+    The foil reacts only where the separator's pores meet it, so its exchange
+    current density is scaled by the separator surface porosity.
+    """
+
+    def j0_Li_metal(self, c_e, c_Li, T):
+        """Exchange-current density of the lithium foil [A.m-2]."""
+        porosity = pybamm.Parameter("Separator surface porosity")
+        return porosity * super().j0_Li_metal(c_e, c_Li, T)

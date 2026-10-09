@@ -1,36 +1,29 @@
-"""Compare dual-continuum closures with the full DFN for a cathode half cell."""
+"""DC1 and DFN on an LG M50 cell, with the parameters of Paten et al. Table IV."""
 
 import numpy as np
 
 import pybamm
 import pybamm_model_zoo as zoo
-
-HALF_CELL = {"working electrode": "positive"}
-DualContinuum = zoo.load("DualContinuum")
-
-parameter_values = DualContinuum(HALF_CELL).default_parameter_values
-parameter_values["Current function [A]"] *= 2
-times = np.linspace(0, 1500, 101)
+from pybamm_model_zoo.dual_continuum import parameter_sets
 
 models = {
-    "DFN (Fickian)": pybamm.lithium_ion.DFN(HALF_CELL),
-    "DC0": DualContinuum(HALF_CELL, {"model type": "DC0"}),
-    "DC1 (implicit)": DualContinuum(HALF_CELL, {"model type": "DC1"}),
-    "DC1 (a priori)": DualContinuum(
-        HALF_CELL,
-        {"model type": "DC1", "calculate surface concentration a priori": "true"},
-    ),
+    "DFN": (pybamm.lithium_ion.DFN(), parameter_sets.paten2026_dfn()),
+    "DC1": (zoo.load("DualContinuum")(), parameter_sets.paten2026_dc1()),
 }
 
+times = np.linspace(0, 3400, 69)
 voltages = {}
-for label, model in models.items():
+for label, (model, parameter_values) in models.items():
     solution = pybamm.Simulation(model, parameter_values=parameter_values).solve(
-        [0, times[-1]], t_interp=times
+        [0, 3600], t_interp=times
     )
     voltages[label] = solution["Voltage [V]"](times)
-    print(f"{label:16s} solve time {solution.solve_time}")
+    print(
+        f"{label}: discharge ends at {solution.t[-1]:.0f} s, solve {solution.solve_time}"
+    )
 
-reference = voltages["DFN (Fickian)"]
-for label, value in voltages.items():
-    error = np.abs(value - reference).max() * 1e3
-    print(f"{label:16s} max |V - V_DFN| = {error:6.2f} mV")
+print("  time [s]   V_DFN [V]   V_DC1 [V]")
+for t, v_dfn, v_dc1 in zip(
+    times[::10], voltages["DFN"][::10], voltages["DC1"][::10], strict=True
+):
+    print(f"{t:10.0f}   {v_dfn:9.4f}   {v_dc1:9.4f}")
