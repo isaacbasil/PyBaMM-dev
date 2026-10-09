@@ -228,7 +228,7 @@ class DCParticle(pybamm.particle.BaseParticle):
                 f"{Domain} electrode {self.phase_name}effective particle radius [m]"
             ]
             return -R_eff / (5 * self._diffusivity(variables) * F)
-        if self.dc_options["dimensionless closure variable"] == "true":
+        if self.dc_options["closure variable"] == "dimensionless":
             s_star = pybamm.Parameter(
                 f"{Domain} electrode s0 surface average dimensionless"
             )

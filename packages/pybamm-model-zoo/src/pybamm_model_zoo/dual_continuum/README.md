@@ -29,10 +29,11 @@ In DC1, `<s>_A` [mol.m-1.A-1] is the **closure variable**: the surface average
 of the solution of a closure problem solved once on the electrode
 microstructure (e.g. with the `solveclosure` tool, ref. 56 of the paper). It
 depends only on the microstructure, not on operating conditions or material
-properties. No assumption on particle shape is made. With `"calculate surface
-concentration a priori": "true"`, `j` is replaced by its electrode average,
-which removes one algebraic equation per mesh cell. This is only appropriate
-for galvanostatic (constant-current) operation; see the DC options below.
+properties (when non-dimensionalised). No assumption on particle shape is made.
+With `"calculate surface concentration a priori": "true"`, `j` is replaced by
+its electrode average, which removes one algebraic equation per mesh cell. This
+is only appropriate for galvanostatic (constant-current) operation; see the DC
+options below.
 
 Yang and Tartakovsky's model uses a boundary layer of thickness
 `l_d = a_d sqrt(D t)` (up to `l_k`) inside particles of length scale `l_k`,
@@ -79,16 +80,20 @@ solution = pybamm.Simulation(
 | --- | --- |
 | `"model type"` | `"DC1"`, `"DC0"`, `"Yang"` |
 | `"calculate surface concentration a priori"` | `"false"`, `"true"` (DC1 only) |
-| `"closure variable"` | `"parameter"`, `"isolated sphere"` (DC1 only) |
-| `"dimensionless closure variable"` | `"false"`, `"true"` |
+| `"closure variable"` | `"dimensional"`, `"dimensionless"`, `"isolated sphere"` (DC1 only) |
 | `"surface area"` | `"from image"`, `"spherical"` |
 | `"lithium foil surface porosity"` | `"false"`, `"true"` (half cells only) |
 
-- `"closure variable": "isolated sphere"` uses `<s>_A = -R_eff / (5 D F)`, the
-  analytical solution of the closure problem for an isolated sphere of radius
-  `R_eff`, with `D` evaluated at the local volume-averaged concentration. With
-  it, DC1 coincides with PyBaMM's `"quadratic profile"` particle for spherical
-  geometry.
+- `"closure variable"` sets how `<s>_A` is obtained:
+  - `"dimensional"`: read from the parameter set;
+  - `"dimensionless"`: `s*` is read from the parameter set and
+    `<s>_A = s* L / (D F)`, with `L` the electrode thickness;
+  - `"isolated sphere"`: `<s>_A = -R_eff / (5 D F)`, the analytical solution
+    of the closure problem for an isolated sphere of radius `R_eff`. With it,
+    DC1 coincides with PyBaMM's `"quadratic profile"` particle for spherical
+    geometry.
+
+  `D` is evaluated at the local volume-averaged concentration.
 - `"calculate surface concentration a priori": "true"` estimates `j` from the
   applied current, so it is only for galvanostatic (constant-current)
   operation. The model raises an error with any `"operating mode"` other than
@@ -135,8 +140,8 @@ including the AM-CBD and AM-separator contributions.
 
 | Parameter | Used when |
 | --- | --- |
-| `"{Domain} electrode s0 surface average"` [mol.m-1.A-1], the closure variable `<s>_A` | DC1, `"closure variable": "parameter"` |
-| `"{Domain} electrode s0 surface average dimensionless"` `s*`, with `<s>_A = s* L / (D F)` | DC1, `"dimensionless closure variable": "true"` |
+| `"{Domain} electrode s0 surface average"` [mol.m-1.A-1], the closure variable `<s>_A` | DC1, `"closure variable": "dimensional"` |
+| `"{Domain} electrode s0 surface average dimensionless"` `s*`, with `<s>_A = s* L / (D F)` | DC1, `"closure variable": "dimensionless"` |
 | `"{Domain} electrode specific surface area from image (AM-electrolyte) [m-1]"` | `"surface area": "from image"` |
 | `"{Domain} electrode specific surface area from image (AM-CBD) [m-1]"` | `"surface area": "from image"` |
 | `"{Domain} electrode specific surface area from image (AM-separator) [m-1]"` | `"surface area": "from image"` |

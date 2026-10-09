@@ -85,7 +85,7 @@ class TestDualContinuum:
         # Defaults are the DFN's geometry and the isolated-sphere closure at
         # the reference state (constant diffusivities here), with no foil scaling
         dfn = pybamm.lithium_ion.DFN({**options, "particle": "quadratic profile"})
-        for dc_options in [{}, {"dimensionless closure variable": "true"}]:
+        for dc_options in [{}, {"closure variable": "dimensionless"}]:
             np.testing.assert_allclose(
                 voltage(dual_continuum(options, dc_options)),
                 voltage(dfn),
@@ -249,6 +249,8 @@ class TestDualContinuum:
             dual_continuum(dc_options={"closure": "DC1"})
         with pytest.raises(pybamm.OptionError, match="Invalid value"):
             dual_continuum(dc_options={"surface area": "components"})
+        with pytest.raises(pybamm.OptionError, match="Invalid value"):
+            dual_continuum(dc_options={"closure variable": "parameter"})
         with pytest.raises(pybamm.OptionError, match="a priori"):
             dual_continuum(
                 dc_options={

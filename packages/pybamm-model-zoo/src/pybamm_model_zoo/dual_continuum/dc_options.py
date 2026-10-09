@@ -16,12 +16,12 @@ class DCModelOptions(pybamm.FuzzyDict):
       local reaction rate ``j`` (an algebraic equation for c_surf); "true" uses
       the electrode-averaged rate imposed by the applied current (explicit),
       which requires galvanostatic operation ("operating mode": "current").
-    * "closure variable" : DC1 only. "parameter" reads the closure variable
-      :math:`\\langle s \\rangle_A` from the parameter set; "isolated sphere"
-      uses the analytical closure solution for an isolated sphere,
-      :math:`-R_{eff}/(5 D F)`.
-    * "dimensionless closure variable" : with "closure variable": "parameter",
-      "true" reads :math:`s^*` with :math:`\\langle s \\rangle_A = s^* L/(D F)`.
+    * "closure variable" : DC1 only. How :math:`\\langle s \\rangle_A` is obtained:
+        - "dimensional": read from the parameter set [mol.m-1.A-1]
+        - "dimensionless": :math:`s^*` read from the parameter set, with
+          :math:`\\langle s \\rangle_A = s^* L/(D F)`
+        - "isolated sphere": the analytical closure solution for an isolated
+          sphere, :math:`-R_{eff}/(5 D F)`
     * "surface area" : "from image" builds the specific surface area from the
       AM-electrolyte, AM-CBD and AM-separator areas and surface porosities;
       "spherical" uses :math:`3 \\varepsilon_s / R` as in the DFN.
@@ -33,8 +33,7 @@ class DCModelOptions(pybamm.FuzzyDict):
     possible_options = {
         "model type": ["DC1", "DC0", "Yang"],
         "calculate surface concentration a priori": ["false", "true"],
-        "closure variable": ["parameter", "isolated sphere"],
-        "dimensionless closure variable": ["false", "true"],
+        "closure variable": ["dimensional", "dimensionless", "isolated sphere"],
         "surface area": ["from image", "spherical"],
         "lithium foil surface porosity": ["false", "true"],
     }
