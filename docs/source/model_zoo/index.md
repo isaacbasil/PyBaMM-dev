@@ -34,6 +34,8 @@ See [contributing a model](contributing.md) to add your own.
 
 | Model | Tier | Maintainer | PyBaMM | Added |
 | --- | --- | --- | --- | --- |
+| [Dual Continuum Model (standalone scripts)](models/dc_model_my_scripts.md) | community | [@isaacbasil](https://github.com/isaacbasil) | `>=26.0` | 2026-10-06 |
+| [Dual Continuum Model](models/dual_continuum.md) | community | [@isaacbasil](https://github.com/isaacbasil) | `>=26.0` | 2026-10-06 |
 | [Single Particle Model with a linearised open-circuit potential](models/linearised_spm.md) | core | @pybamm-team/maintainers | `>=26.0` | 2026-08-20 |
 
 ## Compatibility
@@ -46,6 +48,8 @@ one whose job never reported, not a pass.
 
 | Model | Results | Last passing |
 | --- | --- | --- |
+| dc_model_my_scripts | not yet run | — |
+| dual_continuum | not yet run | — |
 | linearised_spm | `26.8.0.0`: pass, `26.9.0.0`: pass, `main`: pass | 26.9.0.0 |
 
 ```{toctree}
@@ -53,5 +57,7 @@ one whose job never reported, not a pass.
 :maxdepth: 1
 
 Contributing a model <contributing>
+models/dc_model_my_scripts
+models/dual_continuum
 models/linearised_spm
 ```
