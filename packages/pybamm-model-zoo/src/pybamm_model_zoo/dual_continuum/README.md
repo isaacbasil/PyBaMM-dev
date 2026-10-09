@@ -114,6 +114,14 @@ An effective particle radius `R_eff = 3 eps_s / a` is computed from the total
 area and reported as `"Positive electrode effective particle radius [m]"`; it
 is the radius used by the isolated-sphere closure.
 
+### SEI and other DFN options
+
+The DC model has no SEI model of its own: it accepts PyBaMM's `"SEI"` options
+(e.g. `DualContinuum({"SEI": "reaction limited"})`) and the DFN's other
+options, with their parameters. With `"surface area": "from image"`, the SEI
+grows on the same total specific surface area `a` as the main reaction,
+including the AM-CBD and AM-separator contributions.
+
 ### Parameters
 
 | Parameter | Used when |
@@ -165,11 +173,13 @@ cathode half cell (Xu2019):
   AM-separator contributions gives the same result as the same total area.
 - The Table IV parameter sets give identical results with the Bruggeman and
   tortuosity-factor transport options.
+- With PyBaMM's `"SEI"` options, DC1 with the isolated-sphere closure variable
+  reproduces the DFN with the `"quadratic profile"` particle (rtol 1e-7).
 
 Not yet validated here: the Yang closure (only its dependence on the particle
 radius is checked), and the experimental comparison of the paper. Not yet
-ported from the standalone implementation: Schneider2022 SEI, transient
-closure inputs, minimum plating overpotential outputs. Particle-size
+ported from the standalone implementation: transient closure inputs and
+minimum plating overpotential outputs. Particle-size
 distributions, multiple particle phases and loss of active material are not
 supported.
 

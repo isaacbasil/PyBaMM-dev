@@ -68,6 +68,18 @@ class TestDualContinuum:
             voltage(dual_continuum(options, DFN_LIKE)), voltage(dfn), rtol=1e-7
         )
 
+    @pytest.mark.parametrize("sei", ["reaction limited", "ec reaction limited"])
+    def test_sei_matches_dfn(self, sei):
+        # PyBaMM's SEI options apply unchanged to the DC model
+        dfn = pybamm.lithium_ion.DFN({"SEI": sei, "particle": "quadratic profile"})
+        parameter_values = dfn.default_parameter_values
+        solution = solve(dual_continuum({"SEI": sei}, DFN_LIKE), parameter_values)
+        np.testing.assert_allclose(
+            solution["Voltage [V]"](TIMES), voltage(dfn, parameter_values), rtol=1e-7
+        )
+        thickness = solution["X-averaged negative SEI thickness [m]"](TIMES)
+        assert thickness[-1] > thickness[0]
+
     @pytest.mark.parametrize("options", CELLS)
     def test_default_parameters_describe_the_dfn_cell(self, options):
         # Defaults are the DFN's geometry and the isolated-sphere closure at
