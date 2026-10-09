@@ -78,16 +78,15 @@ class DualContinuum(pybamm.lithium_ion.DFN):
                 )
 
     def _rebuild_param(self):
-        # Image-based surfaces also scale the lithium-foil exchange current
         dc_options = getattr(self, "dc_options", None)
-        if (
-            dc_options is not None
-            and dc_options["surface area"] == "from image"
-            and self.options["working electrode"] != "both"
-        ):
-            self.param = LithiumIonParametersWithFoilPorosity(self.options)
-        else:
+        if dc_options is None or dc_options["lithium foil surface porosity"] == "false":
             super()._rebuild_param()
+            return
+        if self.options["working electrode"] == "both":
+            raise pybamm.OptionError(
+                "'lithium foil surface porosity' only applies to half cells"
+            )
+        self.param = LithiumIonParametersWithFoilPorosity(self.options)
 
     def set_active_material_submodel(self):
         super().set_active_material_submodel()
@@ -145,7 +144,7 @@ class DualContinuum(pybamm.lithium_ion.DFN):
                     ),
                     f"{area} (AM-CBD) [m-1]": 0.0,
                     f"{area} (AM-separator) [m-1]": 0.0,
-                    f"{Domain} electrode Yang fitting parameter": 2.0,
+                    f"{Domain} electrode Yang fitting parameter": 1.0,
                 },
                 check_already_exists=False,
             )

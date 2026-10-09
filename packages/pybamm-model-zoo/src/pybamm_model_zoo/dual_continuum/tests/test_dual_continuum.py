@@ -4,7 +4,7 @@ The closures are pinned against exact limits: DC0 is PyBaMM's uniform-profile
 particle, and DC1 with the isolated-sphere closure variable -R/(5 D F) (the
 analytical solution of the closure problem for a sphere) is PyBaMM's
 quadratic-profile particle. The image-based surface area and the lithium-foil
-scaling are pinned against the standalone implementation, dc_model_my_scripts.
+option are pinned against the standalone implementation, dc_model_my_scripts.
 """
 
 import numpy as np
@@ -57,13 +57,14 @@ class TestDualContinuum:
             voltage(dual_continuum(options, DFN_LIKE)), voltage(dfn), rtol=1e-7
         )
 
-    def test_default_parameters_describe_the_dfn_cell(self):
-        # Full cell: defaults are the DFN's geometry and the isolated-sphere
-        # closure at the reference state (constant diffusivities here)
-        dfn = pybamm.lithium_ion.DFN({"particle": "quadratic profile"})
+    @pytest.mark.parametrize("options", CELLS)
+    def test_default_parameters_describe_the_dfn_cell(self, options):
+        # Defaults are the DFN's geometry and the isolated-sphere closure at
+        # the reference state (constant diffusivities here), with no foil scaling
+        dfn = pybamm.lithium_ion.DFN({**options, "particle": "quadratic profile"})
         for dc_options in [{}, {"dimensionless closure variable": "true"}]:
             np.testing.assert_allclose(
-                voltage(dual_continuum(dc_options=dc_options)),
+                voltage(dual_continuum(options, dc_options)),
                 voltage(dfn),
                 rtol=1e-7,
             )
@@ -94,8 +95,14 @@ class TestDualContinuum:
             3 * eps_s / expected,
         )
 
-    def test_lithium_foil_scaled_by_separator_surface_porosity(self):
-        model = dual_continuum(HALF_CELL, {"closure variable": "isolated sphere"})
+    def test_lithium_foil_surface_porosity(self):
+        model = dual_continuum(
+            HALF_CELL,
+            {
+                "closure variable": "isolated sphere",
+                "lithium foil surface porosity": "true",
+            },
+        )
         parameter_values = model.default_parameter_values
         porosity = parameter_values["Separator surface porosity"]
         reference = dual_continuum(HALF_CELL, DFN_LIKE)
@@ -171,7 +178,10 @@ class TestDualContinuum:
         ],
     )
     def test_matches_standalone_implementation(self, dc_options):
-        model = dual_continuum(HALF_CELL, dc_options)
+        # The standalone implementation scales the foil exchange current
+        model = dual_continuum(
+            HALF_CELL, {**dc_options, "lithium foil surface porosity": "true"}
+        )
         parameter_values = model.default_parameter_values
         # Exercise every surface term, and the foil scaling
         parameter_values.update(
@@ -203,6 +213,8 @@ class TestDualContinuum:
                     "calculate surface concentration a priori": "true",
                 }
             )
+        with pytest.raises(pybamm.OptionError, match="only applies to half cells"):
+            dual_continuum(dc_options={"lithium foil surface porosity": "true"})
         with pytest.raises(pybamm.OptionError, match="single particle phase"):
             dual_continuum({"particle phases": ("2", "1")})
 

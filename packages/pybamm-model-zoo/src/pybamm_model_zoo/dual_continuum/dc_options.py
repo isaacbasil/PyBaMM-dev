@@ -24,6 +24,9 @@ class DCModelOptions(pybamm.FuzzyDict):
     * "surface area" : "from image" builds the specific surface area from the
       AM-electrolyte, AM-CBD and AM-separator areas and surface porosities;
       "spherical" uses :math:`3 \\varepsilon_s / R` as in the DFN.
+    * "lithium foil surface porosity" : half cells only. "true" multiplies the
+      lithium-foil exchange-current density by the separator surface porosity,
+      as some DNS codes do; useful when comparing with such DNS.
     """
 
     possible_options = {
@@ -32,6 +35,7 @@ class DCModelOptions(pybamm.FuzzyDict):
         "closure variable": ["parameter", "isolated sphere"],
         "dimensionless closure variable": ["false", "true"],
         "surface area": ["from image", "spherical"],
+        "lithium foil surface porosity": ["false", "true"],
     }
 
     def __init__(self, extra_options=None):

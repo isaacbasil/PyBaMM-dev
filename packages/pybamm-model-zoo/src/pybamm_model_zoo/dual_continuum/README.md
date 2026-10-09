@@ -79,6 +79,7 @@ solution = pybamm.Simulation(
 | `"closure variable"` | `"parameter"`, `"isolated sphere"` (DC1 only) |
 | `"dimensionless closure variable"` | `"false"`, `"true"` |
 | `"surface area"` | `"from image"`, `"spherical"` |
+| `"lithium foil surface porosity"` | `"false"`, `"true"` (half cells only) |
 
 - `"closure variable": "isolated sphere"` uses `<s>_A = -R_eff / (5 D F)`, the
   analytical solution of the closure problem for an isolated sphere of radius
@@ -86,6 +87,13 @@ solution = pybamm.Simulation(
   it, DC1 coincides with PyBaMM's `"quadratic profile"` particle for spherical
   geometry.
 - `"surface area": "spherical"` uses `a = 3 eps_s / R`, as in the DFN.
+- `"lithium foil surface porosity": "true"` multiplies the exchange-current
+  density of the lithium foil by `"Separator surface porosity"`. Some DNS
+  codes include the separator surface porosity in the kinetics at the foil,
+  since the foil only reacts where it meets the separator's pores; turn this on
+  when comparing with such a DNS. Leave it off otherwise: a foil
+  exchange-current density taken from the literature is usually given per
+  geometric area, so it already includes the contact with the separator.
 
 ### Specific surface area from images
 
@@ -104,9 +112,7 @@ setting each surface porosity equal to the corresponding volume porosity.**
 
 An effective particle radius `R_eff = 3 eps_s / a` is computed from the total
 area and reported as `"Positive electrode effective particle radius [m]"`; it
-is the radius used by the isolated-sphere closure. In a half cell, the lithium
-foil reacts only where it meets the separator's pores, so its exchange-current
-density is also multiplied by the separator surface porosity.
+is the radius used by the isolated-sphere closure.
 
 ### Parameters
 
@@ -128,7 +134,7 @@ cell, Xu2019 for a half cell) plus:
   porosity, and a CBD surface porosity of 0.5;
 - the closure variable set to the isolated-sphere value `-R/(5 D F)` at the
   reference state, so the defaults describe the same cell as the DFN's;
-- a Yang fitting parameter of 2 (a placeholder to replace).
+- a Yang fitting parameter of 1.
 
 `parameter_sets.paten2026_dc1()` and `parameter_sets.paten2026_dfn()` return the
 DC1 and DFN columns of Table IV (an LG M50 cell, fitted to the 1C discharge of
@@ -147,11 +153,11 @@ cathode half cell (Xu2019):
   `"quadratic profile"` (rtol 1e-7), as do the default parameters, with
   dimensional and dimensionless closure variables.
 - The image-based specific surface area and `R_eff` follow the formula above,
-  and the lithium-foil exchange current is scaled by the separator surface
-  porosity.
+  and `"lithium foil surface porosity"` scales the foil exchange current by the
+  separator surface porosity.
 - Lithium in the active material is conserved to round-off.
-- In a half cell with AM-CBD and AM-separator areas and surface porosities,
-  DC0, DC1 and DC1 a priori match the standalone implementation
+- In a half cell with AM-CBD and AM-separator areas, surface porosities and
+  the foil scaling, DC0, DC1 and DC1 a priori match the standalone implementation
   (`dc_model_my_scripts`) to within 10 µV.
 - The Table IV parameter sets give identical results with the Bruggeman and
   tortuosity-factor transport options.
