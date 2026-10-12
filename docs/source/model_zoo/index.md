@@ -47,8 +47,8 @@ one whose job never reported, not a pass.
 
 | Model | Results | Last passing |
 | --- | --- | --- |
-| dual_continuum | not yet run | — |
-| linearised_spm | `26.8.0.0`: pass, `26.9.0.0`: pass, `main`: pass | 26.9.0.0 |
+| dual_continuum | `26.9.0.0`: pass, `26.10.0.0`: pass, `main`: pass | 26.10.0.0 |
+| linearised_spm | `26.9.0.0`: pass, `26.10.0.0`: pass, `main`: pass | 26.10.0.0 |
 
 ```{toctree}
 :hidden:
