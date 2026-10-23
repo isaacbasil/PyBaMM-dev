@@ -1,5 +1,9 @@
 # [Unreleased](https://github.com/pybamm-team/PyBaMM/)
 
+## Features
+
+- Added the `"surface area to volume ratio"` model option. With `"from parameter"`, the specific surface area of an electrode is read from `"{Domain} electrode surface area to volume ratio [m-1]"` instead of being computed as `3 * eps_s / R`, so it can be taken from a microstructure image while the particle radius sets only the diffusion length. A source `j / F * (3 / R - a / eps_s)`, uniform in r, is added to the particle mass balance so that lithium is conserved; it leaves the surface-minus-average concentration unchanged and vanishes when `a = 3 * eps_s / R`. Supported for single-size spherical particles with Fickian diffusion or polynomial profiles, and no loss of active material. (PR link to be added)
+
 ## Bug fixes
 
 - `pybamm` now installs on Python 3.15. `pybammsolvers` 0.11.0 declared `requires-python <3.15` and shipped no cp315 wheels, so `pybamm`'s solver requirement could not be met there. Released `pybammsolvers` v0.11.1, which allows Python 3.15 and ships cp315 wheels. ([#5909](https://github.com/pybamm-team/PyBaMM/pull/5909))

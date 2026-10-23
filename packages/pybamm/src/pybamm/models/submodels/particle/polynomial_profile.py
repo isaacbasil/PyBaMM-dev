@@ -255,7 +255,10 @@ class PolynomialProfile(BaseParticle):
             ]
             R = variables[f"{Domain} particle sizes [m]"]
 
-        self.rhs = {c_s_rav: -3 * j / self.param.F / R}
+        dcdt = -3 * j / self.param.F / R
+        if self.surface_area_from_parameter:
+            dcdt = dcdt + self._get_surface_area_source(variables, j, x_average=False)
+        self.rhs = {c_s_rav: dcdt}
 
         if self.name == "quartic profile":
             # We solve an extra ODE for the average particle flux

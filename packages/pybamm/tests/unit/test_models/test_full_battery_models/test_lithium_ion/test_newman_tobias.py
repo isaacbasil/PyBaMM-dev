@@ -21,6 +21,10 @@ class TestNewmanTobias(BaseUnitTestLithiumIon):
         pass  # skip this test
 
     @pytest.mark.skip(reason="Test currently not implemented")
+    def test_well_posed_surface_area_from_parameter_phases(self):
+        pass  # skip this test
+
+    @pytest.mark.skip(reason="Test currently not implemented")
     def test_well_posed_particle_phases_thermal(self):
         pass  # Skip this test
 

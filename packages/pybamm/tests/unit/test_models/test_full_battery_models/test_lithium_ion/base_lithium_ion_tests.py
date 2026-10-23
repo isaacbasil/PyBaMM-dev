@@ -178,6 +178,31 @@ class BaseUnitTestLithiumIon:
         options = {"particle": ("Fickian diffusion", "quartic profile")}
         self.check_well_posedness(options)
 
+    def test_well_posed_surface_area_from_parameter(self):
+        options = {"surface area to volume ratio": "from parameter"}
+        self.check_well_posedness(options)
+
+    def test_well_posed_surface_area_from_parameter_positive_only(self):
+        options = {
+            "surface area to volume ratio": ("from particle shape", "from parameter")
+        }
+        self.check_well_posedness(options)
+
+    @pytest.mark.parametrize("particle", ["uniform profile", "quartic profile"])
+    def test_well_posed_surface_area_from_parameter_polynomial(self, particle):
+        options = {
+            "surface area to volume ratio": "from parameter",
+            "particle": particle,
+        }
+        self.check_well_posedness(options)
+
+    def test_well_posed_surface_area_from_parameter_phases(self):
+        options = {
+            "surface area to volume ratio": "from parameter",
+            "particle phases": ("2", "1"),
+        }
+        self.check_well_posedness(options)
+
     def test_well_posed_constant_utilisation(self):
         options = {"interface utilisation": "constant"}
         self.check_well_posedness(options)

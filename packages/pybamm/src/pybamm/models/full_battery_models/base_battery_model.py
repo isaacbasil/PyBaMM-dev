@@ -277,6 +277,17 @@ class BatteryModelOptions(pybamm.FuzzyDict):
                 The default is "false" if "particle mechanics" is "none" and "true"
                 otherwise. A 2-tuple can be provided for different behaviour in negative
                 and positive electrodes.
+            * "surface area to volume ratio" : str
+                Sets how the specific surface area of the active material (surface
+                area per unit electrode volume) is obtained. Can be
+                "from particle shape" (default), which uses 3 * (active material
+                volume fraction) / (particle radius) for spherical particles, or
+                "from parameter", which reads it from
+                "{Domain} electrode surface area to volume ratio [m-1]". With
+                "from parameter", a uniform source is added to the particle mass
+                balance so that lithium is conserved, and the particle radius only
+                sets the diffusion length. A 2-tuple can be provided for different
+                behaviour in negative and positive electrodes.
             * "surface form" : str
                 Whether to use the surface formulation of the problem. Can be "false"
                 (default), "differential" or "algebraic".
@@ -419,6 +430,7 @@ class BatteryModelOptions(pybamm.FuzzyDict):
             "SEI on cracks": ["false", "true"],
             "SEI porosity change": ["false", "true"],
             "stress-induced diffusion": ["false", "true"],
+            "surface area to volume ratio": ["from particle shape", "from parameter"],
             "surface form": ["false", "differential", "algebraic"],
             "surface temperature": ["ambient", "lumped"],
             "thermal": ["isothermal", "lumped", "x-lumped", "x-full"],
@@ -470,6 +482,7 @@ class BatteryModelOptions(pybamm.FuzzyDict):
             "SEI on cracks": "false",
             "SEI porosity change": "false",
             "stress-induced diffusion": "false",
+            "surface area to volume ratio": "from particle shape",
             "surface form": "false",
             "surface temperature": "ambient",
             "thermal": "isothermal",
@@ -682,6 +695,40 @@ class BatteryModelOptions(pybamm.FuzzyDict):
                     "'number of MSMR reactions' must be a positive integer for "
                     f"the {domain} electrode when it uses 'MSMR' "
                     f"(got {domain_count!r})"
+                )
+
+        # A specified surface area is only implemented for single-size, spherical,
+        # concentration-based particles with constant active material
+        for domain, index in electrode_domains:
+            surface_area = _per_electrode(
+                options["surface area to volume ratio"], index
+            )
+            if isinstance(surface_area, str):
+                surface_area = (surface_area,)
+            if "from parameter" not in surface_area:
+                continue
+            incompatible = {
+                "particle shape": ("spherical", options["particle shape"]),
+                "particle size": (
+                    "single",
+                    _per_electrode(options["particle size"], index),
+                ),
+                "loss of active material": (
+                    "none",
+                    _per_electrode(options["loss of active material"], index),
+                ),
+            }
+            for option, (required, value) in incompatible.items():
+                if value != required:
+                    raise pybamm.OptionError(
+                        "'surface area to volume ratio' cannot be 'from parameter' "
+                        f"in the {domain} electrode unless '{option}' is "
+                        f"'{required}' (got {value!r})"
+                    )
+            if _is_msmr(_per_electrode(options["particle"], index)):
+                raise pybamm.OptionError(
+                    "'surface area to volume ratio' cannot be 'from parameter' "
+                    f"in the {domain} electrode with an 'MSMR' particle"
                 )
 
         # If "SEI film resistance" is "distributed" then "total interfacial current
@@ -906,6 +953,7 @@ class BatteryModelOptions(pybamm.FuzzyDict):
                         "SEI",
                         "SEI on cracks",
                         "stress-induced diffusion",
+                        "surface area to volume ratio",
                     ]
                     and isinstance(value, tuple)
                     and len(value) == 2

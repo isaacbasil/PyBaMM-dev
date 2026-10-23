@@ -99,7 +99,11 @@ class BaseModel(pybamm.BaseSubModel):
             R_av = pybamm.x_average(R)
 
             # Compute dimensional particle shape
-            if self.options["particle shape"] == "spherical":
+            phase_options = getattr(domain_options, self.phase)
+            if phase_options["surface area to volume ratio"] == "from parameter":
+                a = self.phase_param.a
+                a_av = pybamm.x_average(a)
+            elif self.options["particle shape"] == "spherical":
                 a = 3 * eps_solid / R
                 a_av = pybamm.x_average(a)
 

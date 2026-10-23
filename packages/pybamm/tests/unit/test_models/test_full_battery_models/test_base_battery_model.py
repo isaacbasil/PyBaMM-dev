@@ -48,6 +48,7 @@ PRINT_OPTIONS_OUTPUT = """\
 'SEI on cracks': 'false' (possible: ['false', 'true'])
 'SEI porosity change': 'false' (possible: ['false', 'true'])
 'stress-induced diffusion': 'true' (possible: ['false', 'true'])
+'surface area to volume ratio': 'from particle shape' (possible: ['from particle shape', 'from parameter'])
 'surface form': 'differential' (possible: ['false', 'differential', 'algebraic'])
 'surface temperature': 'ambient' (possible: ['ambient', 'lumped'])
 'thermal': 'x-full' (possible: ['isothermal', 'lumped', 'x-lumped', 'x-full'])
@@ -498,6 +499,57 @@ class TestBaseBatteryModel:
                     "number of MSMR reactions": ("6", "none"),
                 }
             )
+
+    def test_surface_area_from_parameter_options(self):
+        model = pybamm.BaseBatteryModel(
+            {"surface area to volume ratio": ("from particle shape", "from parameter")}
+        )
+        assert model.options.negative["surface area to volume ratio"] == (
+            "from particle shape"
+        )
+        assert model.options.positive["surface area to volume ratio"] == (
+            "from parameter"
+        )
+        with pytest.raises(pybamm.OptionError, match=r"surface area to volume ratio"):
+            pybamm.BaseBatteryModel({"surface area to volume ratio": "bad option"})
+
+    @pytest.mark.parametrize(
+        ("options", "match"),
+        [
+            ({"particle size": "distribution"}, r"'particle size' is 'single'"),
+            (
+                {"loss of active material": ("none", "reaction-driven")},
+                r"positive electrode unless 'loss of active material'",
+            ),
+            (
+                {
+                    "open-circuit potential": "MSMR",
+                    "particle": "MSMR",
+                    "intercalation kinetics": "MSMR",
+                    "number of MSMR reactions": ("6", "6"),
+                },
+                r"'MSMR' particle",
+            ),
+        ],
+    )
+    def test_surface_area_from_parameter_incompatible(self, options, match):
+        with pytest.raises(pybamm.OptionError, match=match):
+            pybamm.BaseBatteryModel(
+                {"surface area to volume ratio": "from parameter", **options}
+            )
+
+    def test_surface_area_from_parameter_only_checks_requesting_electrode(self):
+        # The negative electrode keeps a = 3 eps_s / R, so its options are free
+        model = pybamm.BaseBatteryModel(
+            {
+                "surface area to volume ratio": (
+                    "from particle shape",
+                    "from parameter",
+                ),
+                "loss of active material": ("reaction-driven", "none"),
+            }
+        )
+        assert model.options.negative["loss of active material"] == "reaction-driven"
 
     def test_build_twice(self):
         model = pybamm.lithium_ion.SPM()  # need to pick a model to set vars and build

@@ -27,6 +27,59 @@ class BaseParticle(pybamm.BaseSubModel):
         domain_options = getattr(self.options, domain)
         self.size_distribution = domain_options["particle size"] == "distribution"
 
+    @property
+    def surface_area_from_parameter(self):
+        """Whether the specific surface area is a parameter rather than 3 eps_s / R."""
+        phase_options = getattr(getattr(self.options, self.domain), self.phase)
+        return phase_options["surface area to volume ratio"] == "from parameter"
+
+    def _get_surface_area_source(self, variables, j, x_average):
+        """
+        Uniform volumetric source in the particle that conserves lithium when the
+        specific surface area ``a`` is not ``3 eps_s / R``.
+
+        With a surface flux ``j / F`` alone, the volume-averaged particle
+        concentration changes at ``-3 j / (F R)``, whereas the electrode exchanges
+        lithium at ``-a j / (eps_s F)`` per unit active material volume. The source
+        ``j / F * (3 / R - a / eps_s)`` makes up the difference; being uniform in
+        ``r``, it leaves the surface-minus-average concentration unchanged.
+
+        Parameters
+        ----------
+        variables : dict
+            The model variables.
+        j : :class:`pybamm.Symbol`
+            Interfacial current density [A.m-2].
+        x_average : bool
+            Whether to use x-averaged geometric quantities.
+
+        Returns
+        -------
+        :class:`pybamm.Symbol`
+            The source term [mol.m-3.s-1].
+        """
+        domain, Domain = self.domain_Domain
+        phase_name = self.phase_name
+        if x_average:
+            R = variables[f"X-averaged {domain} {phase_name}particle radius [m]"]
+            a = variables[
+                f"X-averaged {domain} electrode {phase_name}"
+                "surface area to volume ratio [m-1]"
+            ]
+            eps_s = variables[
+                f"X-averaged {domain} electrode {phase_name}"
+                "active material volume fraction"
+            ]
+        else:
+            R = variables[f"{Domain} {phase_name}particle radius [m]"]
+            a = variables[
+                f"{Domain} electrode {phase_name}surface area to volume ratio [m-1]"
+            ]
+            eps_s = variables[
+                f"{Domain} electrode {phase_name}active material volume fraction"
+            ]
+        return j / self.param.F * (3 / R - a / eps_s)
+
     def _get_effective_diffusivity(self, c, T, current):
         domain, Domain = self.domain_Domain
         phase_param = self.phase_param

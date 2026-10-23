@@ -531,7 +531,19 @@ class ParticleLithiumIonParameters(BaseParameters):
         self.Q_Li_init = self.n_Li_init * main.F / 3600
         self.Q_init = self.elec_loading * main.A_cc
 
-        if self.options["particle shape"] == "spherical":
+        if getattr(self.options, self.phase)["surface area to volume ratio"] == (
+            "from parameter"
+        ):
+            self.a = pybamm.FunctionParameter(
+                f"{pref}{Domain} electrode surface area to volume ratio [m-1]",
+                {
+                    "Through-cell distance (x) [m]": x,
+                    "Horizontal distance (y) [m]": y,
+                    "Vertical distance (z) [m]": z,
+                },
+            )
+            self.a_typ = pybamm.xyz_average(self.a)
+        elif self.options["particle shape"] == "spherical":
             self.a_typ = 3 * pybamm.xyz_average(self.epsilon_s) / self.R_typ
 
         # Mechanical property

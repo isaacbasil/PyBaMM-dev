@@ -200,12 +200,16 @@ class FickianDiffusion(BaseParticle):
         D_eff = self._get_effective_diffusivity(c_s, T, current)
         N_s = -D_eff * pybamm.grad(c_s)
 
+        rhs = -(1 / (R_broad_nondim**2)) * pybamm.div(N_s)
+        if self.surface_area_from_parameter:
+            source = self._get_surface_area_source(variables, j, self.x_average)
+            rhs = rhs + pybamm.PrimaryBroadcast(
+                source, [f"{domain} {phase_name}particle"]
+            )
+
         variables.update(
             {
-                f"{Domain} {phase_name}particle rhs [mol.m-3.s-1]": -(
-                    1 / (R_broad_nondim**2)
-                )
-                * pybamm.div(N_s),
+                f"{Domain} {phase_name}particle rhs [mol.m-3.s-1]": rhs,
                 f"{Domain} {phase_name}particle bc [mol.m-4]": -j
                 * R_nondim
                 / self.param.F

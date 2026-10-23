@@ -244,6 +244,10 @@ class XAveragedPolynomialProfile(PolynomialProfile):
         # eq 15 of Subramanian2005
         # equivalent to dcdt = -i_cc / (eps * F * L)
         dcdt = -3 * j_xav / self.param.F / R
+        if self.surface_area_from_parameter:
+            dcdt = dcdt + self._get_surface_area_source(
+                variables, j_xav, x_average=True
+            )
 
         if self.size_distribution is False:
             self.rhs = {c_s_av: pybamm.source(dcdt, c_s_av)}
