@@ -255,7 +255,11 @@ class PolynomialProfile(BaseParticle):
             ]
             R = variables[f"{Domain} particle sizes [m]"]
 
-        self.rhs = {c_s_rav: -3 * j / self.param.F / R}
+        surface_flux_scaling = self._get_surface_flux_scaling(x_average=False)
+        dcdt = -3 * surface_flux_scaling * j / self.param.F / R
+        if self.surface_area_from_parameter:
+            dcdt = dcdt + self._get_surface_area_source(variables, j, x_average=False)
+        self.rhs = {c_s_rav: dcdt}
 
         if self.name == "quartic profile":
             # We solve an extra ODE for the average particle flux
@@ -269,7 +273,7 @@ class PolynomialProfile(BaseParticle):
             self.rhs.update(
                 {
                     q_s_rav: -30 * pybamm.r_average(D_eff) * q_s_rav / R**2
-                    - 45 / 2 * j / self.param.F / R**2
+                    - 45 / 2 * surface_flux_scaling * j / self.param.F / R**2
                 }
             )
 
@@ -285,6 +289,7 @@ class PolynomialProfile(BaseParticle):
         D_eff = variables[f"{Domain} particle effective diffusivity [m2.s-1]"]
         j = variables[f"{Domain} electrode interfacial current density [A.m-2]"]
         R = variables[f"{Domain} particle radius [m]"]
+        surface_flux_scaling = self._get_surface_flux_scaling(x_average=False)
 
         c_max = self.phase_param.c_max
         T_ref = self.param.T_ref
@@ -294,7 +299,8 @@ class PolynomialProfile(BaseParticle):
             # We solve an algebraic equation for the surface concentration
             self.algebraic = {
                 c_s_surf: (
-                    pybamm.surf(D_eff) * (c_s_surf - c_s_rav) + j * R / self.param.F / 5
+                    pybamm.surf(D_eff) * (c_s_surf - c_s_rav)
+                    + surface_flux_scaling * j * R / self.param.F / 5
                 )
                 / D_c_max_scale
             }
@@ -310,7 +316,7 @@ class PolynomialProfile(BaseParticle):
             self.algebraic = {
                 c_s_surf: (
                     pybamm.surf(D_eff) * (35 / R * (c_s_surf - c_s_rav) - 8 * q_s_rav)
-                    + j / self.param.F
+                    + surface_flux_scaling * j / self.param.F
                 )
                 / D_c_max_over_R_scale
             }

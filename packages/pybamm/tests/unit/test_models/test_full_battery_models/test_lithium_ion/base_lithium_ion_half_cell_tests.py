@@ -18,6 +18,10 @@ class BaseUnitTestLithiumIonHalfCell:
         options = {}
         self.check_well_posedness(options)
 
+    def test_well_posed_surface_area_from_parameter(self):
+        options = {"surface area to volume ratio": "from parameter"}
+        self.check_well_posedness(options)
+
     def test_well_posed_constant_utilisation(self):
         options = {"interface utilisation": "constant"}
         self.check_well_posedness(options)

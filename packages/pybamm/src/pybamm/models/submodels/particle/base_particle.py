@@ -27,6 +27,83 @@ class BaseParticle(pybamm.BaseSubModel):
         domain_options = getattr(self.options, domain)
         self.size_distribution = domain_options["particle size"] == "distribution"
 
+    @property
+    def surface_area_from_parameter(self):
+        """Whether the specific surface area is a parameter rather than 3 eps_s / R."""
+        domain_options = getattr(self.options, self.domain)
+        return domain_options["surface area to volume ratio"] == "from parameter"
+
+    def _get_surface_flux_scaling(self, x_average):
+        """
+        Factor multiplying the interfacial current density in the particle surface
+        flux, ``-D dc/dr = scaling * j / F`` at ``r = R``.
+
+        Parameters
+        ----------
+        x_average : bool
+            Whether to return the x-averaged factor.
+
+        Returns
+        -------
+        :class:`pybamm.Symbol`
+            The scaling factor (1 unless the surface area is from a parameter).
+        """
+        if not self.surface_area_from_parameter:
+            return pybamm.Scalar(1)
+        scaling = self.phase_param.surface_flux_scaling
+        if x_average:
+            return pybamm.x_average(scaling)
+        return scaling
+
+    def _get_surface_area_source(self, variables, j, x_average):
+        """
+        Uniform volumetric source in the particle that conserves lithium when the
+        specific surface area ``a`` is not ``3 eps_s / R``.
+
+        With a surface flux ``beta * j / F``, where ``beta`` is the surface flux
+        scaling factor, the volume-averaged particle concentration changes at
+        ``-3 beta j / (F R)``, whereas the electrode exchanges lithium at
+        ``-a j / (eps_s F)`` per unit active material volume. The source
+        ``j / F * (3 beta / R - a / eps_s)`` makes up the difference; being uniform
+        in ``r``, it does not change the surface-minus-average concentration.
+
+        Parameters
+        ----------
+        variables : dict
+            The model variables.
+        j : :class:`pybamm.Symbol`
+            Interfacial current density [A.m-2].
+        x_average : bool
+            Whether to use x-averaged geometric quantities.
+
+        Returns
+        -------
+        :class:`pybamm.Symbol`
+            The source term [mol.m-3.s-1].
+        """
+        domain, Domain = self.domain_Domain
+        phase_name = self.phase_name
+        if x_average:
+            R = variables[f"X-averaged {domain} {phase_name}particle radius [m]"]
+            a = variables[
+                f"X-averaged {domain} electrode {phase_name}"
+                "surface area to volume ratio [m-1]"
+            ]
+            eps_s = variables[
+                f"X-averaged {domain} electrode {phase_name}"
+                "active material volume fraction"
+            ]
+        else:
+            R = variables[f"{Domain} {phase_name}particle radius [m]"]
+            a = variables[
+                f"{Domain} electrode {phase_name}surface area to volume ratio [m-1]"
+            ]
+            eps_s = variables[
+                f"{Domain} electrode {phase_name}active material volume fraction"
+            ]
+        beta = self._get_surface_flux_scaling(x_average)
+        return j / self.param.F * (3 * beta / R - a / eps_s)
+
     def _get_effective_diffusivity(self, c, T, current):
         domain, Domain = self.domain_Domain
         phase_param = self.phase_param

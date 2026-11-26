@@ -45,6 +45,7 @@ _PER_ELECTRODE_OPTIONS = frozenset(
         "SEI",
         "SEI on cracks",
         "stress-induced diffusion",
+        "surface area to volume ratio",
     }
 )
 _PER_PHASE_OPTIONS = frozenset(
@@ -436,6 +437,47 @@ def _apply_legacy_defaults(options: pybamm.FuzzyDict, supplied: set[str]) -> Non
         )
 
 
+def _check_surface_area_from_parameter(options: pybamm.FuzzyDict, domain: str) -> None:
+    """Check that a specified surface area is supported in one electrode.
+
+    Parameters
+    ----------
+    options : pybamm.FuzzyDict
+        The merged options, after dependent defaults are applied.
+    domain : str
+        ``"negative"`` or ``"positive"``.
+
+    Raises
+    ------
+    pybamm.OptionError
+        If the electrode's particles are not single-size spheres with constant
+        active material and a concentration-based particle model.
+    """
+    required = {
+        "particle shape": "spherical",
+        "particle size": "single",
+        "loss of active material": "none",
+    }
+    for option, required_value in required.items():
+        value = resolve_option(option, options[option], domain)
+        if value != required_value:
+            raise dependency_error(
+                "surface area to volume ratio",
+                "from parameter",
+                option,
+                f"'{required_value}'",
+                (domain,),
+            )
+    if resolve_option("particle", options["particle"], domain) == "MSMR":
+        raise dependency_error(
+            "surface area to volume ratio",
+            "from parameter",
+            "particle",
+            "a model other than 'MSMR'",
+            (domain,),
+        )
+
+
 def _check_electrode_compatibility(options: pybamm.FuzzyDict) -> None:
     """Check options that depend on each other within one electrode or phase.
 
@@ -483,6 +525,15 @@ def _check_electrode_compatibility(options: pybamm.FuzzyDict) -> None:
                 "requires 'surface form' to be 'differential' or 'algebraic' and "
                 "'particle' to be 'Fickian diffusion'."
             )
+        if (
+            resolve_option(
+                "surface area to volume ratio",
+                options["surface area to volume ratio"],
+                domain,
+            )
+            == "from parameter"
+        ):
+            _check_surface_area_from_parameter(options, domain)
         for phase in phases:
             path = (domain, phase) if number_of_phases > 1 else (domain,)
             value = {
@@ -882,6 +933,22 @@ class BatteryModelOptions(pybamm.FuzzyDict):
                 "particle mechanics" is "none" there and "true" otherwise. A 2-tuple
                 can be provided for different behaviour in negative and positive
                 electrodes.
+            * "surface area to volume ratio" : str
+                Sets how the specific surface area of the active material (surface
+                area per unit electrode volume) is obtained. Can be
+                "from particle shape" (default), which uses 3 * (active material
+                volume fraction) / (particle radius) for spherical particles, or
+                "from parameter", which reads it from
+                "{Domain} electrode surface area to volume ratio [m-1]" and
+                decouples it from the particle radius. With "from parameter", the
+                particle surface flux is multiplied by
+                "{Domain} particle surface flux scaling factor" and a uniform
+                source is added to the particle mass balance so that lithium is
+                conserved. A scaling factor of 1 keeps the surface flux, and a
+                scaling factor equal to (surface area to volume ratio) *
+                (particle radius) / (3 * (active material volume fraction))
+                removes the source. A 2-tuple can be provided for different
+                behaviour in negative and positive electrodes.
             * "surface form" : str
                 Whether to use the surface formulation of the problem. Can be "false"
                 (default), "differential" or "algebraic".
@@ -1031,6 +1098,7 @@ class BatteryModelOptions(pybamm.FuzzyDict):
             "SEI on cracks": ["false", "true"],
             "SEI porosity change": ["false", "true"],
             "stress-induced diffusion": ["false", "true"],
+            "surface area to volume ratio": ["from particle shape", "from parameter"],
             "surface form": ["false", "differential", "algebraic"],
             "surface temperature": ["ambient", "lumped"],
             "thermal": ["isothermal", "lumped", "x-lumped", "x-full"],
@@ -1082,6 +1150,7 @@ class BatteryModelOptions(pybamm.FuzzyDict):
             "SEI on cracks": "false",
             "SEI porosity change": "false",
             "stress-induced diffusion": "false",
+            "surface area to volume ratio": "from particle shape",
             "surface form": "false",
             "surface temperature": "ambient",
             "thermal": "isothermal",

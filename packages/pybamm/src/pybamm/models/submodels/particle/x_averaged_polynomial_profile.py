@@ -112,6 +112,7 @@ class XAveragedPolynomialProfile(PolynomialProfile):
             sgn = 1 if self.domain == "negative" else -1
 
             j_xav = sgn * i_boundary_cc / (a_av * self.domain_param.L)
+            surface_flux_scaling = self._get_surface_flux_scaling(x_average=True)
 
         # Set surface concentration based on polynomial order
         if self.name == "uniform profile":
@@ -134,7 +135,9 @@ class XAveragedPolynomialProfile(PolynomialProfile):
             # an extra algebraic equation to solve. For now, using the average c is an
             # ok approximation and means the SPM(e) still gives a system of ODEs rather
             # than DAEs.
-            c_s_surf_xav = c_s_av - (j_xav * R / 5 / self.param.F / D_eff_av)
+            c_s_surf_xav = c_s_av - (
+                surface_flux_scaling * j_xav * R / 5 / self.param.F / D_eff_av
+            )
         elif self.name == "quartic profile":
             # The surface concentration is computed from the average concentration,
             # the average concentration gradient and the boundary flux (see notes
@@ -144,7 +147,7 @@ class XAveragedPolynomialProfile(PolynomialProfile):
                 f"Average {domain} particle concentration gradient [mol.m-4]"
             ]
             c_s_surf_xav = c_s_av + R / 35 * (
-                8 * q_s_av - (j_xav / self.param.F / D_eff_av)
+                8 * q_s_av - (surface_flux_scaling * j_xav / self.param.F / D_eff_av)
             )
 
         # Set concentration depending on polynomial order
@@ -243,7 +246,12 @@ class XAveragedPolynomialProfile(PolynomialProfile):
 
         # eq 15 of Subramanian2005
         # equivalent to dcdt = -i_cc / (eps * F * L)
-        dcdt = -3 * j_xav / self.param.F / R
+        surface_flux_scaling = self._get_surface_flux_scaling(x_average=True)
+        dcdt = -3 * surface_flux_scaling * j_xav / self.param.F / R
+        if self.surface_area_from_parameter:
+            dcdt = dcdt + self._get_surface_area_source(
+                variables, j_xav, x_average=True
+            )
 
         if self.size_distribution is False:
             self.rhs = {c_s_av: pybamm.source(dcdt, c_s_av)}
@@ -262,7 +270,7 @@ class XAveragedPolynomialProfile(PolynomialProfile):
             # eq 30 of Subramanian2005
             dqdt = (
                 -30 * pybamm.surf(D_eff_xav) * q_s_av / R**2
-                - 45 / 2 * j_xav / self.param.F / R**2
+                - 45 / 2 * surface_flux_scaling * j_xav / self.param.F / R**2
             )
             self.rhs[q_s_av] = pybamm.source(dqdt, q_s_av)
 
